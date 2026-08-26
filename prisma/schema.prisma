@@ -1,0 +1,67 @@
+// Growthub — weekly call-tracking dashboard, synced from a Google Calendar.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection (Supabase transaction pooler, port 6543) — used at runtime
+  directUrl = env("DIRECT_URL")   // direct connection (port 5432) — used by `prisma migrate` only, since DDL doesn't work reliably through a transaction pooler
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STAFF)
+  createdAt    DateTime @default(now())
+}
+
+enum CallSource {
+  CONTENT
+  ADS
+  COLD_EMAIL
+  REFERRAL
+  UNKNOWN
+}
+
+enum QualStatus {
+  QUALIFIED
+  UNQUALIFIED
+  PENDING
+}
+
+// One row per synced calendar event. `source`/`qualified`/`noShow` are
+// best-effort guesses parsed from the event text on first sync (see
+// lib/call-parsing.ts) and are freely editable afterward — re-syncing only
+// refreshes title/time/description, never overwrites a manual correction.
+model CallEntry {
+  id              String     @id @default(cuid())
+  calendarEventId String     @unique
+  title           String
+  description     String?
+  startTime       DateTime
+  weekStart       DateTime // Monday 00:00 of the week startTime falls in, for grouping
+  source          CallSource @default(UNKNOWN)
+  qualified       QualStatus @default(PENDING)
+  noShow          Boolean    @default(false)
+  notes           String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([weekStart])
+}
+
+// Free-text "Concerns" notes per week, matching the source sheet's format.
+model CallWeekNote {
+  weekStart DateTime @id
+  body      String
+  updatedAt DateTime @updatedAt
+}
