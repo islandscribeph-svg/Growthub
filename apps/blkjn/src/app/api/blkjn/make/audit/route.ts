@@ -20,11 +20,18 @@ export async function POST(request: Request) {
   })) {
     return json(401, { error: "invalid_signature" });
   }
-  const parsed = JSON.parse(body) as { eventId?: string; ok?: boolean };
-  if (!parsed.eventId || typeof parsed.ok !== "boolean") return json(400, { error: "invalid_audit" });
+  let parsed: { eventId?: string; ok?: boolean; fenceToken?: string };
+  try {
+    parsed = JSON.parse(body) as { eventId?: string; ok?: boolean; fenceToken?: string };
+  } catch {
+    return json(400, { error: "invalid_json" });
+  }
+  if (!parsed.eventId || typeof parsed.ok !== "boolean" || (parsed.fenceToken !== undefined && typeof parsed.fenceToken !== "string")) {
+    return json(400, { error: "invalid_audit" });
+  }
   const result = await acknowledgeAudit(
     { pool: deps.pool, config: deps.config, storage: deps.storage },
-    { eventId: parsed.eventId, ok: parsed.ok },
+    { eventId: parsed.eventId, ok: parsed.ok, fenceToken: parsed.fenceToken },
   );
   if (!result.ok) return json(result.status, { error: result.error });
   return json(200, result);

@@ -7,11 +7,14 @@ import { parseExtraction } from "./extraction.ts";
 import {
   downloadGrantKeys,
   duplicateRejectedKeys,
+  fixtureReceiptSha256,
   fulfillmentHeldKeys,
   fulfillmentRequestedKeys,
   hasKeys,
   orderLineKeys,
   outboxEventKeys,
+  receiptHashMatches,
+  receiptSha256,
   receiptSubmittedKeys,
   requestReceivedKeys,
 } from "./make-contract.ts";
@@ -92,6 +95,12 @@ test("published extraction and outbox examples match the runtime allowlist", () 
   assert.equal(fixture.examples.requestSendAck.emailSentByBackend, false);
   assert.equal(fixture.examples.requestSendAck.resent, false);
   assert.equal(fixture.examples.deliveryReport.resent, false);
-  assert.match(fixture.examples.receiptObject.sha256, /^[0-9a-f]{64}$/);
-  assert.equal(fixture.examples.receiptObject.bytesBase64, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]).toString("base64"));
+  const receiptBytes = Buffer.from(fixture.examples.receiptObject.bytesBase64, "base64");
+  assert.equal(receiptSha256(receiptBytes), fixtureReceiptSha256);
+  assert.equal(fixture.examples.receiptObject.sha256, fixtureReceiptSha256);
+  assert.equal(fixture.examples.outboxList.events[0].payload.contentSha256, fixtureReceiptSha256);
+  assert.equal(receiptHashMatches(receiptBytes, fixture.examples.receiptObject.sha256), true);
+  const tampered = Buffer.from(receiptBytes);
+  tampered[tampered.length - 1] ^= 0xff;
+  assert.equal(receiptHashMatches(tampered, fixture.examples.receiptObject.sha256), false);
 });

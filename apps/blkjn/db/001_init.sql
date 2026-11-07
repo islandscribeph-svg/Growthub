@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS outbox (
   status text NOT NULL,
   lease_until timestamptz,
   attempt_count integer NOT NULL DEFAULT 0,
+  fence_token text,
+  fence_generation integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL
 );
 
@@ -99,3 +101,18 @@ CREATE TABLE IF NOT EXISTS download_grants (
 
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS lease_until timestamptz;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS attempt_count integer NOT NULL DEFAULT 0;
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS fence_token text;
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS fence_generation integer NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS send_reservations (
+  id uuid PRIMARY KEY,
+  event_id text NOT NULL,
+  action text NOT NULL,
+  fence_token text NOT NULL,
+  state text NOT NULL,
+  provider_message_id text,
+  report_key text,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  UNIQUE (event_id, action)
+);

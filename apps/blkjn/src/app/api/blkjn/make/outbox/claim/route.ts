@@ -20,18 +20,18 @@ export async function POST(request: Request) {
   })) {
     return json(401, { error: "invalid_signature" });
   }
-  let parsed: { eventId?: string; leaseSeconds?: number };
+  let parsed: { eventId?: string; leaseSeconds?: number; fenceToken?: string };
   try {
-    parsed = JSON.parse(body) as { eventId?: string; leaseSeconds?: number };
+    parsed = JSON.parse(body) as { eventId?: string; leaseSeconds?: number; fenceToken?: string };
   } catch {
     return json(400, { error: "invalid_json" });
   }
-  if (!parsed.eventId || (parsed.leaseSeconds !== undefined && (!Number.isInteger(parsed.leaseSeconds) || parsed.leaseSeconds < 30 || parsed.leaseSeconds > 300))) {
+  if (!parsed.eventId || (parsed.fenceToken !== undefined && typeof parsed.fenceToken !== "string") || (parsed.leaseSeconds !== undefined && (!Number.isInteger(parsed.leaseSeconds) || parsed.leaseSeconds < 30 || parsed.leaseSeconds > 300))) {
     return json(400, { error: "invalid_claim" });
   }
   const result = await claimOutbox(
     { pool: deps.pool, config: deps.config, storage: deps.storage },
-    { eventId: parsed.eventId, leaseSeconds: parsed.leaseSeconds },
+    { eventId: parsed.eventId, leaseSeconds: parsed.leaseSeconds, fenceToken: parsed.fenceToken },
   );
   if (!result.ok) return json(result.status, { error: result.error });
   return json(200, result);

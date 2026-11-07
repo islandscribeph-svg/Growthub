@@ -1,5 +1,5 @@
 {
-  "description": "Synthetic Make contract examples. The signing secret is a fixture, not a deployment secret. blkjn.example is not a live host. Replaying the frozen timestamp against a server outside the 5-minute window returns 401 invalid_signature.",
+  "description": "Synthetic Make contract examples. The signing secret is a fixture, not a deployment secret. blkjn.example is not a live host. Replaying the frozen timestamp against a server outside the 5-minute window returns 401 invalid_signature. getOutbox, postClaim, postReceiptObject, and postExtraction bytes are unchanged from the signer check. Receipt bytes iVBORw0KGgoA hash to 843ac23b1736b4487ec81cf7c07ddd9bb46ae5b7818c2c3843d99d62fa75f3c9. An uncertain report omits providerMessageId.",
   "fixtureSecret": "test-signing-secret",
   "replayWindowMs": 300000,
   "headers": {
@@ -49,27 +49,54 @@
       "method": "POST",
       "path": "/api/blkjn/make/audit/",
       "timestamp": "2026-11-08T00:00:00.000Z",
-      "rawBody": "{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"ok\":true}",
-      "signature": "4ee2df08594fd2883b224a5b0d020566b5380bc8ac9c750af81881e40fa8be13",
-      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/audit/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 4ee2df08594fd2883b224a5b0d020566b5380bc8ac9c750af81881e40fa8be13' --data '{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"ok\":true}'"
+      "rawBody": "{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"fenceToken\":\"synthetic-fence-token\",\"ok\":true}",
+      "signature": "9f6a14cc2b019b75732a2b180618137a988d94836523a4328a32bc2712ebaf74",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/audit/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 9f6a14cc2b019b75732a2b180618137a988d94836523a4328a32bc2712ebaf74' --data '{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"fenceToken\":\"synthetic-fence-token\",\"ok\":true}'"
     },
     {
       "name": "postRequestSend",
       "method": "POST",
       "path": "/api/blkjn/make/request-sends/",
       "timestamp": "2026-11-08T00:00:00.000Z",
-      "rawBody": "{\"eventId\":\"request.received:00000000-0000-4000-8000-000000000003\",\"idempotencyKey\":\"request-mail-1\",\"outcome\":\"uncertain\",\"providerMessageId\":\"synthetic-message-1\"}",
-      "signature": "973b77eac5f6acc0f9ff7c6631ca84060f26a0031a69b2bdf218bf6787f7ee4d",
-      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/request-sends/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 973b77eac5f6acc0f9ff7c6631ca84060f26a0031a69b2bdf218bf6787f7ee4d' --data '{\"eventId\":\"request.received:00000000-0000-4000-8000-000000000003\",\"idempotencyKey\":\"request-mail-1\",\"outcome\":\"uncertain\",\"providerMessageId\":\"synthetic-message-1\"}'"
+      "rawBody": "{\"eventId\":\"request.received:00000000-0000-4000-8000-000000000003\",\"fenceToken\":\"synthetic-fence-token\",\"operation\":\"report\",\"outcome\":\"uncertain\",\"idempotencyKey\":\"request-mail-1\"}",
+      "signature": "02db1eae7da407aafc71c4d4143a0c769773edc7cbed19049292d63469ee6300",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/request-sends/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 02db1eae7da407aafc71c4d4143a0c769773edc7cbed19049292d63469ee6300' --data '{\"eventId\":\"request.received:00000000-0000-4000-8000-000000000003\",\"fenceToken\":\"synthetic-fence-token\",\"operation\":\"report\",\"outcome\":\"uncertain\",\"idempotencyKey\":\"request-mail-1\"}'"
     },
     {
       "name": "postDelivery",
       "method": "POST",
       "path": "/api/blkjn/make/deliveries/",
       "timestamp": "2026-11-08T00:00:00.000Z",
-      "rawBody": "{\"orderId\":\"00000000-0000-4000-8000-000000000001\",\"idempotencyKey\":\"delivery-1\",\"outcome\":\"uncertain\",\"providerMessageId\":\"synthetic-message-1\"}",
-      "signature": "55f3369648664e57b517a0f191ca070313268b1c4daa7fc68c793fdc92ca1fd7",
-      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/deliveries/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 55f3369648664e57b517a0f191ca070313268b1c4daa7fc68c793fdc92ca1fd7' --data '{\"orderId\":\"00000000-0000-4000-8000-000000000001\",\"idempotencyKey\":\"delivery-1\",\"outcome\":\"uncertain\",\"providerMessageId\":\"synthetic-message-1\"}'"
+      "rawBody": "{\"eventId\":\"fulfillment.00000000-0000-4000-8000-000000000001\",\"fenceToken\":\"synthetic-fence-token\",\"operation\":\"report\",\"outcome\":\"uncertain\",\"idempotencyKey\":\"delivery-1\"}",
+      "signature": "ddfd67219b6dbf9e761deebe9cec4f7e6c7c1d3080f9eaade0257ddaf482bc0b",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/deliveries/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: ddfd67219b6dbf9e761deebe9cec4f7e6c7c1d3080f9eaade0257ddaf482bc0b' --data '{\"eventId\":\"fulfillment.00000000-0000-4000-8000-000000000001\",\"fenceToken\":\"synthetic-fence-token\",\"operation\":\"report\",\"outcome\":\"uncertain\",\"idempotencyKey\":\"delivery-1\"}'"
+    },
+    {
+      "name": "postClaimRenew",
+      "method": "POST",
+      "path": "/api/blkjn/make/outbox/claim/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"fenceToken\":\"synthetic-fence-token\",\"leaseSeconds\":120}",
+      "signature": "1f95b1f9f905d9e7230e23bea36b9bcb42f12238ea9846e2b12730b1f48420d8",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/outbox/claim/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 1f95b1f9f905d9e7230e23bea36b9bcb42f12238ea9846e2b12730b1f48420d8' --data '{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"fenceToken\":\"synthetic-fence-token\",\"leaseSeconds\":120}'"
+    },
+    {
+      "name": "postSendReserve",
+      "method": "POST",
+      "path": "/api/blkjn/make/sends/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"eventId\":\"receipt.duplicate:00000000-0000-4000-8000-000000000001:extract-2\",\"action\":\"duplicate_notice\",\"fenceToken\":\"synthetic-fence-token\",\"operation\":\"reserve\"}",
+      "signature": "6df0af81059946761bf4ab34f4f44385c7cef0f97181a6e1ad507710ae362df8",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/sends/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 6df0af81059946761bf4ab34f4f44385c7cef0f97181a6e1ad507710ae362df8' --data '{\"eventId\":\"receipt.duplicate:00000000-0000-4000-8000-000000000001:extract-2\",\"action\":\"duplicate_notice\",\"fenceToken\":\"synthetic-fence-token\",\"operation\":\"reserve\"}'"
+    },
+    {
+      "name": "postSendUnknown",
+      "method": "POST",
+      "path": "/api/blkjn/make/sends/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"eventId\":\"receipt.duplicate:00000000-0000-4000-8000-000000000001:extract-2\",\"action\":\"duplicate_notice\",\"fenceToken\":\"synthetic-fence-token\",\"operation\":\"report\",\"outcome\":\"uncertain\",\"idempotencyKey\":\"duplicate-mail-1\"}",
+      "signature": "689654a5df6dd86d0941120869cf434da863d7a47161f7054e1ede2493b100a5",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/sends/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 689654a5df6dd86d0941120869cf434da863d7a47161f7054e1ede2493b100a5' --data '{\"eventId\":\"receipt.duplicate:00000000-0000-4000-8000-000000000001:extract-2\",\"action\":\"duplicate_notice\",\"fenceToken\":\"synthetic-fence-token\",\"operation\":\"report\",\"outcome\":\"uncertain\",\"idempotencyKey\":\"duplicate-mail-1\"}'"
     }
   ],
   "examples": {
@@ -88,7 +115,7 @@
             "receiptId": "00000000-0000-4000-8000-000000000004",
             "idempotencyKey": "up-1",
             "objectKey": "receipts/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002",
-            "contentSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "contentSha256": "843ac23b1736b4487ec81cf7c07ddd9bb46ae5b7818c2c3843d99d62fa75f3c9",
             "contentType": "image/png",
             "submittedAt": "2026-11-07T15:55:00.000Z",
             "orderCreatedAt": "2026-11-07T15:40:00.000Z",
@@ -112,7 +139,8 @@
       "orderId": "00000000-0000-4000-8000-000000000001",
       "orderRef": "BLKJN-SYNTHETIC01",
       "subject": "We need another payment receipt for order BLKJN-SYNTHETIC01",
-      "body": "Thanks for your order. We couldn't approve this receipt because its payment reference is already linked to another order. No download has been sent for this order. If you resubmitted an existing order or believe this is a mistake, please reply with your order number so we can help. Please don't make another payment until we've checked."
+      "body": "Thanks for your order. We couldn't approve this receipt because its payment reference is already linked to another order. No download has been sent for this order. If you resubmitted an existing order or believe this is a mistake, please reply with your order number so we can help. Please don't make another payment until we've checked.",
+      "buyerEmail": "buyer@example.com"
     },
     "requestReceived": {
       "requestId": "00000000-0000-4000-8000-000000000003",
@@ -156,7 +184,7 @@
           "receiptId": "00000000-0000-4000-8000-000000000004",
           "idempotencyKey": "up-1",
           "objectKey": "receipts/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002",
-          "contentSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "contentSha256": "843ac23b1736b4487ec81cf7c07ddd9bb46ae5b7818c2c3843d99d62fa75f3c9",
           "contentType": "image/png",
           "submittedAt": "2026-11-07T15:55:00.000Z",
           "orderCreatedAt": "2026-11-07T15:40:00.000Z",
@@ -173,7 +201,10 @@
             }
           ]
         }
-      }
+      },
+      "fenceToken": "synthetic-fence-token",
+      "fenceGeneration": 1,
+      "renewed": false
     },
     "auditAck": {
       "ok": true,
@@ -190,22 +221,48 @@
     },
     "requestSendAck": {
       "ok": true,
-      "duplicate": false,
-      "mailState": "uncertain",
+      "action": "request_mail",
+      "eventId": "request.received:00000000-0000-4000-8000-000000000003",
+      "state": "uncertain",
+      "sendBlocked": true,
+      "stopped": true,
+      "owner": false,
+      "providerMessageId": null,
       "resent": false,
-      "emailSentByBackend": false
+      "emailSentByBackend": false,
+      "duplicate": false
     },
     "deliveryReport": {
       "ok": true,
-      "duplicate": false,
-      "status": "DELIVERY_UNCERTAIN",
-      "resent": false
+      "action": "fulfillment_delivery",
+      "eventId": "fulfillment.00000000-0000-4000-8000-000000000001",
+      "state": "uncertain",
+      "sendBlocked": true,
+      "stopped": true,
+      "owner": false,
+      "providerMessageId": null,
+      "resent": false,
+      "emailSentByBackend": false,
+      "duplicate": false
     },
     "receiptObject": {
       "ok": true,
       "contentType": "image/png",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sha256": "843ac23b1736b4487ec81cf7c07ddd9bb46ae5b7818c2c3843d99d62fa75f3c9",
       "bytesBase64": "iVBORw0KGgoA"
+    },
+    "duplicateNotice": {
+      "ok": true,
+      "action": "duplicate_notice",
+      "eventId": "receipt.duplicate:00000000-0000-4000-8000-000000000001:extract-2",
+      "state": "uncertain",
+      "sendBlocked": true,
+      "stopped": true,
+      "owner": false,
+      "providerMessageId": null,
+      "resent": false,
+      "emailSentByBackend": false,
+      "duplicate": false
     }
   }
 }

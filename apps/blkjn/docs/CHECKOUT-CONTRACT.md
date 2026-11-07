@@ -50,7 +50,7 @@ Topics the server writes:
 | Topic | When | Payload keys |
 |---|---|---|
 | `receipt.submitted` | A new receipt object was stored. | `orderId`, `publicRef`, `receiptId`, `idempotencyKey`, `objectKey`, `contentSha256`, `contentType`, `submittedAt`, `orderCreatedAt`, `currency`, `totalCentavos`, `paymentMethod`, `lines` |
-| `receipt.duplicate_rejected` | The reference is already claimed by another order. | `orderId`, `orderRef`, `subject`, `body` |
+| `receipt.duplicate_rejected` | The reference is already claimed by another order. | `orderId`, `orderRef`, `buyerEmail`, `subject`, `body` |
 | `request.received` | Request intake is live and the form was stored. | `requestId`, `name`, `email`, `message`, `replyTo` |
 | `fulfillment.held` | Receipt criteria matched while `BLKJN_FULFILLMENT_LIVE` is not `true`. | `orderId`, `orderRef`, `reason` |
 | `fulfillment.requested` | Receipt criteria matched while fulfillment is live and download TTL and count are set. | `orderId`, `orderRef`, `buyerEmail`, `grants` |
@@ -68,23 +68,25 @@ Event ids:
 - `request.received:{requestId}`
 - `fulfillment.{orderId}`
 
-## Lease, retry, and audit
+## Lease, fence, and audit
+
+The outbox list does not include `fenceToken`. Only the claim response does. Treat that token as the worker's lease credential. A lease lasts at most 300 seconds. Renew it before it expires.
 
 1. GET the outbox.
-2. `POST /api/blkjn/make/outbox/claim/` with `{ "eventId": "...", "leaseSeconds": 120 }`. `leaseSeconds` is optional, integer, minimum 30, maximum 300. Omitted means 120.
-3. Success is `{ "ok": true, "duplicate": false, "leaseSeconds": 120, "event": { ...same envelope, "status": "leased", "attemptCount": 1 } }`. `attemptCount` increases by one on every successful claim.
-4. A second claim before `lease_until` returns `409` `{ "error": "lease_held" }`.
-5. After the lease expires, GET shows the event again with `status: "leased"`. Claim succeeds and increments `attemptCount`.
-6. Do the side effect once per `eventId`. Sheet rows must use `eventId` as their key so a retry updates the same row.
-7. `POST /api/blkjn/make/audit/` with `{ "eventId": "...", "ok": true }` marks `pending` or `leased` events `audited` and returns `{ "ok": true, "duplicate": false, "status": "audited", "paymentDecisionChanged": false }`. A later audit returns `duplicate: true` and the same `paymentDecisionChanged: false`.
-8. `{ "ok": false }` clears the lease and sets the status back to `pending`. Response: `{ "ok": true, "duplicate": false, "status": "pending", "retry": true, "paymentDecisionChanged": false }`. The payment decision is unchanged.
-9. Unknown `eventId` returns `404` `{ "error": "event_not_found" }`.
-10. `ok: true` on topic `request.received` returns `409` `{ "error": "use_request_send_ack" }`. Use the request-send route instead. `ok: false` still releases that lease.
-11. Claim of an `audited`, `mail_accepted`, or `mail_uncertain` event returns `{ "ok": true, "duplicate": true, "status": "<current status>" }` and does not hand the payload out again.
+2. `POST /api/blkjn/make/outbox/claim/` with `{ "eventId": "...", "leaseSeconds": 120 }`. `leaseSeconds` is optional, integer, 30 through 300. Omitted means 120. This acquires a new fence.
+3. Acquire success is `{ "ok": true, "duplicate": false, "renewed": false, "leaseSeconds": 120, "fenceToken": "...", "fenceGeneration": 1, "event": { ...envelope, "status": "leased", "attemptCount": 1 } }`. `attemptCount` and `fenceGeneration` increase only on acquire.
+4. Renew with `{ "eventId": "...", "fenceToken": "<current>", "leaseSeconds": 120 }` while the lease is still in the future. Success keeps the same `fenceToken` and `attemptCount`, sets `renewed: true`, and moves `lease_until` forward. A worker that will run longer than 300 seconds must renew. Presenting the old token after expiry returns `409` `{ "error": "stale_fence" }` and does not grant a new fence.
+5. A claim without a token, while another fence is still inside its lease, returns `409` `{ "error": "lease_held" }`. After expiry, one new claim without a token wins and receives a new fence. A concurrent second claim gets `lease_held`.
+6. Sheet rows use `eventId` as their key.
+7. `POST /api/blkjn/make/audit/` body `{ "eventId", "fenceToken", "ok": true }` requires the current fence. It returns `{ "ok": true, "duplicate": false, "status": "audited", "paymentDecisionChanged": false }`. A later audit of an audited row returns `duplicate: true` and the same `paymentDecisionChanged: false`.
+8. `{ "ok": false }` with the current unexpired fence sets the row back to `pending` and clears the fence. Response: `{ "ok": true, "duplicate": false, "status": "pending", "retry": true, "paymentDecisionChanged": false }`. It does not delete a send reservation.
+9. Unknown `eventId` returns `404` `{ "error": "event_not_found" }`. A wrong or expired fence returns `409` `{ "error": "stale_fence" }`.
+10. Audit `ok: true` on `request.received`, `receipt.duplicate_rejected`, or `fulfillment.requested` returns `409` `{ "error": "send_not_reported" }` until that event's send reservation is `accepted` or `uncertain`.
+11. Claim of an `audited`, `mail_accepted`, or `mail_uncertain` event returns `{ "ok": true, "duplicate": true, "status": "<current status>" }` and does not include a fence or the payload.
 
-`paymentDecisionChanged` is always false on this route. Audit does not approve, reject, or settle a payment.
+`paymentDecisionChanged` is always false. Audit does not approve, reject, or settle a payment.
 
-While fulfillment is off, claim `fulfillment.held` and `receipt.duplicate_rejected`, write the sheet row, and audit `ok: true`. Do not send email. Audited held events are not rewritten into `fulfillment.requested` later. Only a new approval that happens while fulfillment is live emits grants.
+`fulfillment.held` has no send. Claim it, write the sheet, and audit with the fence. It is not rewritten into `fulfillment.requested` later. `receipt.duplicate_rejected` does have a buyer email and a send reservation, including while fulfillment is off. That mail does not release files.
 
 ## Private receipt bytes
 
@@ -100,7 +102,7 @@ Success:
 { "ok": true, "contentType": "image/png", "sha256": "64 lowercase hex chars", "bytesBase64": "base64 of the object bytes" }
 ```
 
-`contentType` is `image/png`, `image/jpeg`, or `application/pdf`. `sha256` equals `contentSha256` from `receipt.submitted`. Decode `bytesBase64` and hash it before OCR. A key that is not stored for that order returns `404` `{ "error": "object_not_found" }`. The route does not return a public URL. Missing storage configuration returns `503`.
+`contentType` is `image/png`, `image/jpeg`, or `application/pdf`. The server returns the bytes only when SHA-256 of those bytes equals the stored `content_sha256`. Otherwise it returns `409` `{ "error": "receipt_hash_mismatch" }` and no bytes. The fixture bytes `iVBORw0KGgoA` hash to `843ac23b1736b4487ec81cf7c07ddd9bb46ae5b7818c2c3843d99d62fa75f3c9`, which is also the example `contentSha256`. A key that is not stored for that order returns `404` `{ "error": "object_not_found" }`. The route does not return a public URL. Missing storage configuration returns `503`.
 
 ## Extraction
 
@@ -152,62 +154,59 @@ Responses:
 
 `meansBankSettlement` is false. `filesReleased` is false unless an in-process mailer, which the HTTP server does not attach, accepts a send. Make treats `delivery: "not_sent"` as "the server did not email anyone".
 
-## Request-send acknowledgment
+## Send reservation
 
-Public `POST /api/blkjn/requests/` stays `403` `{ "error": "request_collection_disabled" }` until `BLKJN_REQUEST_INTAKE_LIVE=true`. The server still does not send that email.
+Public `POST /api/blkjn/requests/` stays `403` `{ "error": "request_collection_disabled" }` until `BLKJN_REQUEST_INTAKE_LIVE=true`. The server never sends request mail, the duplicate-reference mail, or the download mail. `emailSentByBackend` and `resent` are always false. This is not an exactly-once mailbox guarantee. The server does not call Gmail, and it cannot look up a message whose response was lost.
 
-After Make sends the request notification, `POST /api/blkjn/make/request-sends/`:
+One reservation exists per `eventId` and `action`:
+
+| Action | Topic | Route |
+|---|---|---|
+| `request_mail` | `request.received` | `POST /api/blkjn/make/request-sends/` or `POST /api/blkjn/make/sends/` |
+| `duplicate_notice` | `receipt.duplicate_rejected` | `POST /api/blkjn/make/sends/` with `"action": "duplicate_notice"` |
+| `fulfillment_delivery` | `fulfillment.requested` | `POST /api/blkjn/make/deliveries/` or `POST /api/blkjn/make/sends/` |
+
+`fulfillment_delivery` returns `403` `{ "error": "fulfillment_disabled" }` while fulfillment is off. The other two actions do not. A topic that does not match the action returns `404` `{ "error": "send_event_not_found" }`.
+
+Reserve only after a live claim, and only then send:
+
+```json
+{ "eventId": "receipt.duplicate:{orderId}:{idempotencyKey}", "action": "duplicate_notice", "fenceToken": "<claim fence>", "operation": "reserve" }
+```
+
+The first success is `{ "ok": true, "state": "reserved", "sendBlocked": false, "stopped": false, "owner": true, "providerMessageId": null, "duplicate": false, "resent": false, "emailSentByBackend": false }`. Send only when `sendBlocked` is false. A second reserve, or a reserve by another fence, returns the current state with `sendBlocked: true`. Do not send.
+
+Report after the external call. `operation` is `report`. `idempotencyKey` is required. The same key returns the stored state and does not change it.
 
 ```json
 {
   "eventId": "request.received:{requestId}",
-  "idempotencyKey": "request-mail-1",
+  "fenceToken": "<reservation fence>",
+  "operation": "report",
   "outcome": "uncertain",
-  "providerMessageId": "synthetic-message-1"
+  "idempotencyKey": "request-mail-1"
 }
 ```
 
-`outcome` is `accepted`, `uncertain`, or `failed`. `accepted` and `uncertain` require `providerMessageId`.
+Omit `providerMessageId` when the provider did not return one. Do not invent one.
 
-| Result | Body |
+| Report | Result |
 |---|---|
-| Accepted | `{ "ok": true, "duplicate": false, "mailState": "accepted", "resent": false, "emailSentByBackend": false }` |
-| Uncertain | `{ "ok": true, "duplicate": false, "mailState": "uncertain", "resent": false, "emailSentByBackend": false }` |
-| Failed | `{ "ok": true, "duplicate": false, "mailState": "failed", "resent": false, "emailSentByBackend": false }` and the event returns to `pending` |
-| Same idempotency key | `{ "ok": true, "duplicate": true, "mailState": "<stored>", "resent": false, "emailSentByBackend": false }` |
-| Uncertain, then a new key with the same `providerMessageId` and `outcome: "accepted"` | `{ "ok": true, "duplicate": false, "mailState": "accepted", "reconciled": true, "resent": false, "emailSentByBackend": false }` |
-| Uncertain, then a different message id | `409` `{ "error": "reconcile_required" }` |
-| Already accepted | `{ "ok": true, "duplicate": true, "mailState": "accepted", "resent": false, "emailSentByBackend": false }` |
-| Not a request event | `404` `{ "error": "request_event_not_found" }` |
+| `accepted` with `providerMessageId` from `reserved` | `state: "accepted"`, `sendBlocked: true`. Fulfillment delivery also sets the order to `DELIVERED`. |
+| `accepted` without `providerMessageId` | `400` `{ "error": "missing_provider_message_id" }` |
+| `uncertain` with no id | `state: "uncertain"`, `stopped: true`, `providerMessageId: null`, `sendBlocked: true`. The order is not delivered. Further reserves stay blocked. |
+| `uncertain` with an id the provider did return | Same stopped state, and the id is stored. It is not treated as delivered. |
+| `failed` with no id | `state: "failed"`. Use this only when the provider refused the send before acceptance. A later reserve by the current lease fence may open one new `reserved` row. |
+| `failed` with an id | `400` `{ "error": "failed_has_provider_id" }` |
+| Same `idempotencyKey` | `duplicate: true` and the stored state. A lost-response report does not become accepted just because the retry says so. |
+| `uncertain`, then a new key, `accepted`, and a provider id | Moves to `accepted` when no id was stored, or when the id matches. A different id is `409` `{ "error": "reconcile_required" }`. |
+| Any other report while `uncertain` | `409` `{ "error": "send_stopped" }` |
+| Report from a fence that does not own the reservation | `409` `{ "error": "stale_fence" }` |
+| Report before reserve | `409` `{ "error": "send_not_reserved" }` |
 
-`emailSentByBackend` is always false. `resent` is always false. An uncertain result stays `mail_uncertain` and does not reappear in the outbox. Do not send a second email for it.
+`uncertain` is the stopped state for a lost response. It stays stopped until a later report supplies a real provider id for that same event and action. If no id arrives, nothing in this server searches a mailbox, retries the send, or marks the order delivered. A new lease owner who finds `sendBlocked: true` must not send.
 
-## Delivery report
-
-`POST /api/blkjn/make/deliveries/` works only while `BLKJN_FULFILLMENT_LIVE=true`. Otherwise `403` `{ "error": "fulfillment_disabled" }`. The HTTP server does not send the customer email. Make reports the send it performed.
-
-```json
-{
-  "orderId": "uuid",
-  "idempotencyKey": "delivery-1",
-  "outcome": "uncertain",
-  "providerMessageId": "synthetic-message-1"
-}
-```
-
-`accepted` and `uncertain` require `providerMessageId`. Missing it returns `400` `{ "error": "missing_provider_message_id" }`.
-
-| Result | Body |
-|---|---|
-| First accepted | `{ "ok": true, "duplicate": false, "status": "DELIVERED", "resent": false }` |
-| First uncertain | `{ "ok": true, "duplicate": false, "status": "DELIVERY_UNCERTAIN", "resent": false }` |
-| First failed | `{ "ok": true, "duplicate": false, "status": "FULFILLMENT_FAILED", "resent": false }` |
-| Same idempotency key | `{ "ok": true, "duplicate": true, "status": "<stored status>", "resent": false }` |
-| New key, same `providerMessageId`, `outcome: "accepted"` after uncertain | `{ "ok": true, "duplicate": false, "status": "DELIVERED", "reconciled": true, "resent": false }` |
-| Uncertain, then a different message id | `409` `{ "error": "reconcile_required" }` |
-| No fulfillment row | `409` `{ "error": "fulfillment_not_reserved" }` |
-
-`resent` is always false. The same provider message id is the only path from `DELIVERY_UNCERTAIN` to `DELIVERED`.
+`GET /api/blkjn/downloads/{token}?sku={sku}` returns workbook bytes only when fulfillment is live, `BLKJN_DELIVERABLE_ROOT` is set, the token hash matches, the SKU matches, the grant is unexpired, `remaining_count` is at least 1, and `{BLKJN_DELIVERABLE_ROOT}/{sku}.xlsx` exists. Otherwise `503` or `403`. The response is `Cache-Control: no-store`.
 
 `GET /api/blkjn/downloads/{token}?sku={sku}` returns workbook bytes only when fulfillment is live, `BLKJN_DELIVERABLE_ROOT` is set, the token hash matches, the SKU matches, the grant is unexpired, `remaining_count` is at least 1, and `{BLKJN_DELIVERABLE_ROOT}/{sku}.xlsx` exists. Otherwise `503` or `403`. The response is `Cache-Control: no-store`.
 
@@ -253,7 +252,7 @@ Call the app with a trailing slash. `next.config` sets `trailingSlash: true`.
 | `BLKJN_DOWNLOAD_MAX_COUNT` | Grants | Required before a live grant is stored. |
 | `BLKJN_DELIVERABLE_ROOT` | File bytes | Private directory of `{sku}.xlsx` files. |
 
-`migrate` applies `db/001_init.sql`, including `outbox.lease_until` and `outbox.attempt_count` on a database created by the previous script.
+`migrate` applies `db/001_init.sql`, including `outbox.fence_token`, `outbox.fence_generation`, and `send_reservations` on a database created by the previous script.
 
 ## Still outside this repo
 
@@ -267,3 +266,4 @@ These are not invented here and are still required before an inactive scenario c
 - A host name for `downloadPath`. The payload has the path only.
 - Turning on `BLKJN_PURCHASE_LIVE`, `BLKJN_REQUEST_INTAKE_LIVE`, or `BLKJN_FULFILLMENT_LIVE`. They stay false.
 - Replaying events that were already audited while fulfillment was off. That is a separate backfill, not this contract.
+- Gmail reconciliation of a send whose response was lost and that has no provider message id. The reservation stays `uncertain` and `stopped: true`. This server does not query a mailbox and does not turn that state into a delivery.

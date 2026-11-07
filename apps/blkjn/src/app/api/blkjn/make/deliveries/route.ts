@@ -1,5 +1,5 @@
 import { json, runtimeDeps, unavailable } from "../../../../../checkout/http.ts";
-import { reportDelivery } from "../../../../../checkout/service.ts";
+import { parseSendCommand, reportSend, reserveSend } from "../../../../../checkout/send-reservation.ts";
 import { verifySignature } from "../../../../../checkout/signature.ts";
 
 export const runtime = "nodejs";
@@ -20,17 +20,18 @@ export async function POST(request: Request) {
   })) {
     return json(401, { error: "invalid_signature" });
   }
-  const parsed = JSON.parse(body) as {
-    orderId?: string;
-    idempotencyKey?: string;
-    outcome?: "accepted" | "uncertain" | "failed";
-    providerMessageId?: string;
-  };
-  if (!parsed.orderId || !parsed.idempotencyKey || !parsed.outcome) return json(400, { error: "invalid_delivery" });
-  const result = await reportDelivery(
-    { pool: deps.pool, config: deps.config, storage: deps.storage },
-    parsed as { orderId: string; idempotencyKey: string; outcome: "accepted" | "uncertain" | "failed"; providerMessageId?: string },
-  );
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body) as unknown;
+  } catch {
+    return json(400, { error: "invalid_json" });
+  }
+  const command = parseSendCommand(parsed, "fulfillment_delivery");
+  if (!command.ok) return json(400, { error: command.error });
+  const sendDeps = { pool: deps.pool, fulfillmentLive: deps.config.fulfillmentLive };
+  const result = command.operation === "reserve"
+    ? await reserveSend(sendDeps, command)
+    : await reportSend(sendDeps, command);
   if (!result.ok) return json(result.status, { error: result.error });
   return json(200, result);
 }

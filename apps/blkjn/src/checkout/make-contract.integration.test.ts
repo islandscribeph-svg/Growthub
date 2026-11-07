@@ -15,14 +15,17 @@ import { getPool, resetDatabase } from "./db.ts";
 import { parseExtraction } from "./extraction.ts";
 import {
   duplicateRejectedKeys,
+  fixtureReceiptSha256,
   fulfillmentHeldKeys,
   fulfillmentRequestedKeys,
   hasKeys,
   orderLineKeys,
   outboxEventKeys,
+  receiptSha256,
   receiptSubmittedKeys,
   requestReceivedKeys,
 } from "./make-contract.ts";
+import { reportSend, reserveSend } from "./send-reservation.ts";
 import {
   acceptRequest,
   acknowledgeAudit,
@@ -31,8 +34,6 @@ import {
   createOrder,
   listOutbox,
   readReceiptObject,
-  reportDelivery,
-  reportRequestSend,
   submitReceipt,
 } from "./service.ts";
 import { signBody } from "./signature.ts";
@@ -161,12 +162,23 @@ test("runtime outbox, receipt fetch, lease, and request ack match the fixture sc
     assert.equal(payload.paymentMethod, "gcash");
     assert.equal("buyerEmail" in (event.payload as object), false);
 
+    assert.equal(payload.contentSha256, receiptSha256(png));
+    assert.equal(payload.contentSha256, fixtureReceiptSha256);
     const claimed = await claimOutbox(deps, { eventId: event.eventId, leaseSeconds: 120 });
     assert.equal(claimed.ok && claimed.duplicate, false);
     if (!claimed.ok || claimed.duplicate) return;
     assert.equal(claimed.leaseSeconds, 120);
+    assert.equal(claimed.renewed, false);
+    assert.equal(claimed.fenceGeneration, 1);
     assert.equal(claimed.event.status, "leased");
     assert.equal(claimed.event.attemptCount, 1);
+    assert.equal("fenceToken" in claimed.event, false);
+    const renewed = await claimOutbox(deps, { eventId: event.eventId, leaseSeconds: 180, fenceToken: claimed.fenceToken });
+    assert.equal(renewed.ok && renewed.duplicate, false);
+    if (!renewed.ok || renewed.duplicate) return;
+    assert.equal(renewed.renewed, true);
+    assert.equal(renewed.fenceToken, claimed.fenceToken);
+    assert.equal(renewed.event.attemptCount, 1);
     const held = await claimOutbox(deps, { eventId: event.eventId });
     assert.equal(held.ok, false);
     if (!held.ok) assert.equal(held.error, "lease_held");
@@ -181,6 +193,11 @@ test("runtime outbox, receipt fetch, lease, and request ack match the fixture sc
       objectKey: payload.objectKey,
     });
     assert.equal(otherOrder.ok, false);
+    await pool.query("UPDATE receipt_submissions SET content_sha256 = $2 WHERE object_key = $1", [payload.objectKey, "0".repeat(64)]);
+    const mismatch = await readReceiptObject(deps, { orderId: order.orderId, objectKey: payload.objectKey });
+    assert.equal(mismatch.ok, false);
+    if (!mismatch.ok) assert.equal(mismatch.error, "receipt_hash_mismatch");
+    await pool.query("UPDATE receipt_submissions SET content_sha256 = $2 WHERE object_key = $1", [payload.objectKey, payload.contentSha256]);
 
     const receiptBody = JSON.stringify({ orderId: order.orderId, objectKey: payload.objectKey });
     const receiptResponse = await receiptRoute(signed("POST", "/api/blkjn/make/receipt-objects/", receiptBody));
@@ -190,14 +207,15 @@ test("runtime outbox, receipt fetch, lease, and request ack match the fixture sc
     assert.equal(receiptJson.sha256, payload.contentSha256);
     assert.equal(receiptJson.contentType, "image/png");
 
-    const released = await acknowledgeAudit(deps, { eventId: event.eventId, ok: false });
+    const released = await acknowledgeAudit(deps, { eventId: event.eventId, ok: false, fenceToken: claimed.fenceToken });
     assert.equal(released.ok && released.status, "pending");
     if (released.ok) assert.equal(released.paymentDecisionChanged, false);
     const visible = await listOutbox(deps);
     assert.equal(visible.ok && visible.events.length, 1);
     const again = await claimOutbox(deps, { eventId: event.eventId, leaseSeconds: 120 });
     assert.equal(again.ok && !again.duplicate && again.event.attemptCount, 2);
-    const audited = await acknowledgeAudit(deps, { eventId: event.eventId, ok: true });
+    if (!again.ok || again.duplicate) return;
+    const audited = await acknowledgeAudit(deps, { eventId: event.eventId, ok: true, fenceToken: again.fenceToken });
     assert.equal(audited.ok && audited.status, "audited");
     if (audited.ok) assert.equal(audited.paymentDecisionChanged, false);
     const repeat = await acknowledgeAudit(deps, { eventId: event.eventId, ok: true });
@@ -243,12 +261,17 @@ test("runtime outbox, receipt fetch, lease, and request ack match the fixture sc
     assert.ok(heldEvent);
     assert.equal(hasKeys(heldEvent.payload, fulfillmentHeldKeys), true);
     assert.equal((heldEvent.payload as { reason: string }).reason, "fulfillment_disabled");
-    const deliveryBlocked = await reportDelivery(deps, {
-      orderId: order.orderId,
-      idempotencyKey: "delivery-1",
-      outcome: "accepted",
-      providerMessageId: "synthetic-message-1",
-    });
+    const deliveryBlocked = await reportSend(
+      { pool, fulfillmentLive: deps.config.fulfillmentLive },
+      {
+        eventId: heldEvent.eventId,
+        action: "fulfillment_delivery",
+        fenceToken: "synthetic-fence-token",
+        outcome: "accepted",
+        providerMessageId: "synthetic-message-1",
+        idempotencyKey: "delivery-1",
+      },
+    );
     assert.equal(deliveryBlocked.ok, false);
     if (!deliveryBlocked.ok) assert.equal(deliveryBlocked.error, "fulfillment_disabled");
 
@@ -266,8 +289,40 @@ test("runtime outbox, receipt fetch, lease, and request ack match the fixture sc
       extraction: fixtureExtraction.ok ? fixtureExtraction.value : {},
     });
     assert.equal(duplicate.ok && duplicate.outcome, "DUPLICATE_REFERENCE_REJECTED");
-    const duplicateEvent = await pool.query<{ payload: unknown }>("SELECT payload FROM outbox WHERE topic = 'receipt.duplicate_rejected'");
+    const duplicateEvent = await pool.query<{ payload: { buyerEmail?: string }; event_id: string }>(
+      "SELECT event_id, payload FROM outbox WHERE topic = 'receipt.duplicate_rejected'",
+    );
     assert.equal(hasKeys(duplicateEvent.rows[0]?.payload, duplicateRejectedKeys), true);
+    assert.equal(duplicateEvent.rows[0]?.payload.buyerEmail, "buyer-two@example.com");
+    const duplicateClaim = await claimOutbox(deps, { eventId: duplicateEvent.rows[0].event_id, leaseSeconds: 120 });
+    assert.equal(duplicateClaim.ok && duplicateClaim.duplicate, false);
+    if (!duplicateClaim.ok || duplicateClaim.duplicate) return;
+    const duplicateReserve = await reserveSend(
+      { pool, fulfillmentLive: false },
+      { eventId: duplicateEvent.rows[0].event_id, action: "duplicate_notice", fenceToken: duplicateClaim.fenceToken },
+    );
+    assert.equal(duplicateReserve.ok && duplicateReserve.sendBlocked, false);
+    const duplicateUnknown = await reportSend(
+      { pool, fulfillmentLive: false },
+      {
+        eventId: duplicateEvent.rows[0].event_id,
+        action: "duplicate_notice",
+        fenceToken: duplicateClaim.fenceToken,
+        outcome: "uncertain",
+        idempotencyKey: "duplicate-mail-1",
+      },
+    );
+    assert.equal(duplicateUnknown.ok && duplicateUnknown.state, "uncertain");
+    if (duplicateUnknown.ok) {
+      assert.equal(duplicateUnknown.providerMessageId, null);
+      assert.equal(duplicateUnknown.stopped, true);
+      assert.equal(duplicateUnknown.emailSentByBackend, false);
+    }
+    const duplicateBlocked = await reserveSend(
+      { pool, fulfillmentLive: false },
+      { eventId: duplicateEvent.rows[0].event_id, action: "duplicate_notice", fenceToken: duplicateClaim.fenceToken },
+    );
+    assert.equal(duplicateBlocked.ok && duplicateBlocked.sendBlocked, true);
 
     const disabled = await acceptRequest(deps, { name: "Buyer", email: "buyer@example.com", message: "Hello" });
     assert.equal(disabled.ok, false);
@@ -282,46 +337,52 @@ test("runtime outbox, receipt fetch, lease, and request ack match the fixture sc
     const requestRow = await pool.query<{ payload: unknown }>("SELECT payload FROM outbox WHERE event_id = $1", [requestEventId]);
     assert.equal(hasKeys(requestRow.rows[0]?.payload, requestReceivedKeys), true);
     assert.equal((requestRow.rows[0]?.payload as { message: string }).message.startsWith("'="), true);
-    const wrongAck = await acknowledgeAudit(deps, { eventId: requestEventId, ok: true });
-    assert.equal(wrongAck.ok, false);
-    if (!wrongAck.ok) assert.equal(wrongAck.error, "use_request_send_ack");
-    const uncertain = await reportRequestSend(deps, {
-      eventId: requestEventId,
-      idempotencyKey: "request-mail-1",
-      outcome: "uncertain",
-      providerMessageId: "synthetic-message-1",
-    });
-    assert.equal(uncertain.ok && uncertain.mailState, "uncertain");
+    const requestClaim = await claimOutbox(deps, { eventId: requestEventId, leaseSeconds: 120 });
+    assert.equal(requestClaim.ok && requestClaim.duplicate, false);
+    if (!requestClaim.ok || requestClaim.duplicate) return;
+    const earlyAck = await acknowledgeAudit(deps, { eventId: requestEventId, ok: true, fenceToken: requestClaim.fenceToken });
+    assert.equal(earlyAck.ok, false);
+    if (!earlyAck.ok) assert.equal(earlyAck.error, "send_not_reported");
+    const reserved = await reserveSend(
+      { pool, fulfillmentLive: false },
+      { eventId: requestEventId, action: "request_mail", fenceToken: requestClaim.fenceToken },
+    );
+    assert.equal(reserved.ok && reserved.sendBlocked, false);
+    const uncertain = await reportSend(
+      { pool, fulfillmentLive: false },
+      {
+        eventId: requestEventId,
+        action: "request_mail",
+        fenceToken: requestClaim.fenceToken,
+        outcome: "uncertain",
+        idempotencyKey: "request-mail-1",
+      },
+    );
+    assert.equal(uncertain.ok && uncertain.state, "uncertain");
     if (uncertain.ok) {
+      assert.equal(uncertain.providerMessageId, null);
+      assert.equal(uncertain.stopped, true);
       assert.equal(uncertain.emailSentByBackend, false);
       assert.equal(uncertain.resent, false);
     }
-    const conflict = await reportRequestSend(deps, {
-      eventId: requestEventId,
-      idempotencyKey: "request-mail-2",
-      outcome: "accepted",
-      providerMessageId: "different-message",
-    });
-    assert.equal(conflict.ok, false);
-    if (!conflict.ok) assert.equal(conflict.error, "reconcile_required");
-    const reconciled = await reportRequestSend(deps, {
-      eventId: requestEventId,
-      idempotencyKey: "request-mail-3",
-      outcome: "accepted",
-      providerMessageId: "synthetic-message-1",
-    });
-    assert.equal(reconciled.ok && reconciled.mailState, "accepted");
-    if (reconciled.ok) assert.equal(reconciled.emailSentByBackend, false);
+    const blocked = await reserveSend(
+      { pool, fulfillmentLive: false },
+      { eventId: requestEventId, action: "request_mail", fenceToken: requestClaim.fenceToken },
+    );
+    assert.equal(blocked.ok && blocked.sendBlocked, true);
     const requestRouteBody = JSON.stringify({
       eventId: requestEventId,
-      idempotencyKey: "request-mail-3",
+      fenceToken: requestClaim.fenceToken,
+      operation: "report",
       outcome: "accepted",
       providerMessageId: "synthetic-message-1",
+      idempotencyKey: "request-mail-2",
     });
     const requestRouteResponse = await requestSendRoute(signed("POST", "/api/blkjn/make/request-sends/", requestRouteBody));
     assert.equal(requestRouteResponse.status, 200);
-    const requestRouteJson = await requestRouteResponse.json() as { duplicate: boolean; emailSentByBackend: boolean };
-    assert.equal(requestRouteJson.duplicate, true);
+    const requestRouteJson = await requestRouteResponse.json() as { state: string; emailSentByBackend: boolean; providerMessageId: string };
+    assert.equal(requestRouteJson.state, "accepted");
+    assert.equal(requestRouteJson.providerMessageId, "synthetic-message-1");
     assert.equal(requestRouteJson.emailSentByBackend, false);
   } finally {
     restore();
@@ -367,47 +428,134 @@ test("a fulfillment-live test grant is reported by the worker without a backend 
   assert.equal(hasKeys(requested.payload, fulfillmentRequestedKeys), true);
   const grant = (requested.payload as { grants: { downloadPath: string; token: string; sku: string }[] }).grants[0];
   assert.equal(grant.downloadPath, `/api/blkjn/downloads/${grant.token}?sku=${encodeURIComponent(grant.sku)}`);
-  const missing = await reportDelivery(deps, {
-    orderId: order.orderId,
+  const claimed = await claimOutbox(deps, { eventId: requested.eventId, leaseSeconds: 120 });
+  assert.equal(claimed.ok && claimed.duplicate, false);
+  if (!claimed.ok || claimed.duplicate) return;
+  const sendDeps = { pool, fulfillmentLive: true };
+  const reserved = await reserveSend(sendDeps, {
+    eventId: requested.eventId,
+    action: "fulfillment_delivery",
+    fenceToken: claimed.fenceToken,
+  });
+  assert.equal(reserved.ok && reserved.sendBlocked, false);
+  const missing = await reportSend(sendDeps, {
+    eventId: requested.eventId,
+    action: "fulfillment_delivery",
+    fenceToken: claimed.fenceToken,
+    outcome: "accepted",
     idempotencyKey: "delivery-missing",
-    outcome: "uncertain",
   });
   assert.equal(missing.ok, false);
   if (!missing.ok) assert.equal(missing.error, "missing_provider_message_id");
-  const uncertain = await reportDelivery(deps, {
-    orderId: order.orderId,
-    idempotencyKey: "delivery-1",
+  const uncertain = await reportSend(sendDeps, {
+    eventId: requested.eventId,
+    action: "fulfillment_delivery",
+    fenceToken: claimed.fenceToken,
     outcome: "uncertain",
-    providerMessageId: "synthetic-message-1",
+    idempotencyKey: "delivery-1",
   });
-  assert.equal(uncertain.ok && uncertain.status, "DELIVERY_UNCERTAIN");
-  if (uncertain.ok) assert.equal(uncertain.resent, false);
+  assert.equal(uncertain.ok && uncertain.state, "uncertain");
+  if (uncertain.ok) {
+    assert.equal(uncertain.providerMessageId, null);
+    assert.equal(uncertain.stopped, true);
+    assert.equal(uncertain.resent, false);
+    assert.equal(uncertain.emailSentByBackend, false);
+  }
   const status = await pool.query("SELECT status FROM orders WHERE id = $1", [order.orderId]);
   assert.equal(status.rows[0]?.status, "AUTO_APPROVED_RECEIPT");
-  const same = await reportDelivery(deps, {
-    orderId: order.orderId,
-    idempotencyKey: "delivery-1",
+  const same = await reportSend(sendDeps, {
+    eventId: requested.eventId,
+    action: "fulfillment_delivery",
+    fenceToken: claimed.fenceToken,
     outcome: "accepted",
     providerMessageId: "synthetic-message-1",
+    idempotencyKey: "delivery-1",
   });
   assert.equal(same.ok && same.duplicate, true);
-  if (same.ok) assert.equal(same.status, "DELIVERY_UNCERTAIN");
-  const conflict = await reportDelivery(deps, {
-    orderId: order.orderId,
-    idempotencyKey: "delivery-2",
-    outcome: "accepted",
-    providerMessageId: "different-message",
+  if (same.ok) assert.equal(same.state, "uncertain");
+  await pool.query("UPDATE outbox SET lease_until = now() - interval '1 second', status = 'leased' WHERE event_id = $1", [requested.eventId]);
+  const reclaimed = await claimOutbox(deps, { eventId: requested.eventId, leaseSeconds: 120 });
+  assert.equal(reclaimed.ok && reclaimed.duplicate, false);
+  if (!reclaimed.ok || reclaimed.duplicate) return;
+  assert.notEqual(reclaimed.fenceToken, claimed.fenceToken);
+  const overlap = await reserveSend(sendDeps, {
+    eventId: requested.eventId,
+    action: "fulfillment_delivery",
+    fenceToken: reclaimed.fenceToken,
   });
-  assert.equal(conflict.ok, false);
-  if (!conflict.ok) assert.equal(conflict.error, "reconcile_required");
-  const reconciled = await reportDelivery(deps, {
-    orderId: order.orderId,
-    idempotencyKey: "delivery-3",
+  assert.equal(overlap.ok && overlap.sendBlocked, true);
+  if (overlap.ok) assert.equal(overlap.state, "uncertain");
+  const staleReport = await reportSend(sendDeps, {
+    eventId: requested.eventId,
+    action: "fulfillment_delivery",
+    fenceToken: reclaimed.fenceToken,
+    outcome: "failed",
+    idempotencyKey: "delivery-stale",
+  });
+  assert.equal(staleReport.ok, false);
+  if (!staleReport.ok) assert.equal(staleReport.error, "stale_fence");
+  const reconciled = await reportSend(sendDeps, {
+    eventId: requested.eventId,
+    action: "fulfillment_delivery",
+    fenceToken: claimed.fenceToken,
     outcome: "accepted",
     providerMessageId: "synthetic-message-1",
+    idempotencyKey: "delivery-3",
   });
-  assert.equal(reconciled.ok && reconciled.status, "DELIVERED");
+  assert.equal(reconciled.ok && reconciled.state, "accepted");
   if (reconciled.ok) assert.equal(reconciled.resent, false);
   const delivered = await pool.query("SELECT status FROM orders WHERE id = $1", [order.orderId]);
   assert.equal(delivered.rows[0]?.status, "DELIVERED");
+  const conflict = await reportSend(sendDeps, {
+    eventId: requested.eventId,
+    action: "fulfillment_delivery",
+    fenceToken: claimed.fenceToken,
+    outcome: "accepted",
+    providerMessageId: "different-message",
+    idempotencyKey: "delivery-4",
+  });
+  assert.equal(conflict.ok, false);
+  if (!conflict.ok) assert.equal(conflict.error, "reconcile_required");
+});
+
+test("an expired lease has one new owner and the previous fence cannot renew", async () => {
+  const pool = getPool(databaseUrl);
+  await resetDatabase(pool);
+  const root = await mkdtemp(join(tmpdir(), "blkjn-fence-"));
+  const config = testConfig(root);
+  const deps = { pool, config, storage: createStorage(config), now: () => new Date("2026-11-07T23:40:00+08:00") };
+  const order = await createOrder(deps, {
+    buyerEmail: "buyer@example.com",
+    paymentMethod: "gcash",
+    lines: [{ sku: "BLKJN-P01", quantity: 1 }],
+  });
+  assert.equal(order.ok, true);
+  if (!order.ok) return;
+  const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+  assert.equal((await submitReceipt(deps, {
+    orderId: order.orderId,
+    accessToken: order.accessToken,
+    idempotencyKey: "up-fence",
+    bytes: pngBytes,
+  })).ok, true);
+  const listed = await listOutbox(deps);
+  assert.equal(listed.ok, true);
+  if (!listed.ok) return;
+  const eventId = listed.events[0].eventId;
+  const first = await claimOutbox(deps, { eventId, leaseSeconds: 30 });
+  assert.equal(first.ok && first.duplicate, false);
+  if (!first.ok || first.duplicate) return;
+  await pool.query("UPDATE outbox SET lease_until = now() - interval '1 second' WHERE event_id = $1", [eventId]);
+  const stale = await claimOutbox(deps, { eventId, fenceToken: first.fenceToken, leaseSeconds: 30 });
+  assert.equal(stale.ok, false);
+  if (!stale.ok) assert.equal(stale.error, "stale_fence");
+  const [left, right] = await Promise.all([
+    claimOutbox(deps, { eventId, leaseSeconds: 30 }),
+    claimOutbox(deps, { eventId, leaseSeconds: 30 }),
+  ]);
+  const wins = [left, right].filter((item) => item.ok && item.duplicate === false);
+  assert.equal(wins.length, 1);
+  const loser = [left, right].find((item) => !item.ok);
+  assert.ok(loser);
+  if (loser && !loser.ok) assert.equal(loser.error, "lease_held");
 });

@@ -10,9 +10,11 @@ import {
   duplicateRejectedPayload,
   fulfillmentHeldPayload,
   fulfillmentRequestedPayload,
+  receiptHashMatches,
   receiptSubmittedPayload,
   requestReceivedPayload,
 } from "./make-contract.ts";
+import { reservationState } from "./send-reservation.ts";
 import { sniffReceipt, type ObjectStore } from "./storage.ts";
 
 export type Failure = { ok: false; status: number; error: string };
@@ -307,6 +309,7 @@ export async function applyExtraction(deps: Deps, input: {
           [randomUUID(), `receipt.duplicate:${order.id}:${input.idempotencyKey}`, JSON.stringify(duplicateRejectedPayload({
             orderId: order.id,
             orderRef: order.public_ref,
+            buyerEmail: order.buyer_email,
             subject: message.subject,
             body: message.body,
           })), clock.toISOString()],
@@ -462,81 +465,52 @@ export async function acceptRequest(deps: Deps, input: { name: string; email: st
   }
 }
 
-export async function acknowledgeAudit(deps: Deps, input: { eventId: string; ok: boolean }) {
+export async function acknowledgeAudit(deps: Deps, input: { eventId: string; ok: boolean; fenceToken?: string }) {
   if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
-  const current = await deps.pool.query<{ status: string; topic: string }>(
-    "SELECT status, topic FROM outbox WHERE event_id = $1",
+  const current = await deps.pool.query<{ status: string; topic: string; fence_token: string | null; lease_until: Date | null }>(
+    "SELECT status, topic, fence_token, lease_until FROM outbox WHERE event_id = $1",
     [input.eventId],
   );
   const row = current.rows[0];
   if (!row) return fail(404, "event_not_found");
-  if (row.topic === "request.received" && input.ok) return fail(409, "use_request_send_ack");
-  if (row.status === "audited" || row.status === "mail_accepted" || row.status === "mail_uncertain") {
-    return { ok: true as const, duplicate: true, status: row.status, paymentDecisionChanged: false as const };
+  if (row.status === "audited") {
+    return { ok: true as const, duplicate: true, status: "audited" as const, paymentDecisionChanged: false as const };
   }
+  if (!input.fenceToken || row.fence_token !== input.fenceToken) return fail(409, "stale_fence");
+  const owned = row.status === "leased" && row.lease_until !== null && row.lease_until.getTime() > Date.now();
+  const sendTopic = row.topic === "request.received" || row.topic === "receipt.duplicate_rejected" || row.topic === "fulfillment.requested";
   if (input.ok) {
+    if (sendTopic) {
+      const state = await reservationState(deps.pool, input.eventId);
+      if (state !== "accepted" && state !== "uncertain") return fail(409, "send_not_reported");
+    } else if (!owned && row.status !== "mail_accepted" && row.status !== "mail_uncertain") {
+      return fail(409, "stale_fence");
+    }
     const updated = await deps.pool.query(
-      "UPDATE outbox SET status = 'audited', lease_until = NULL WHERE event_id = $1 AND status IN ('pending','leased') RETURNING event_id",
-      [input.eventId],
+      "UPDATE outbox SET status = 'audited', lease_until = NULL WHERE event_id = $1 AND fence_token = $2 RETURNING event_id",
+      [input.eventId, input.fenceToken],
     );
-    if (!updated.rowCount) return fail(409, "event_not_claimable");
+    if (!updated.rowCount) return fail(409, "stale_fence");
     return { ok: true as const, duplicate: false, status: "audited" as const, paymentDecisionChanged: false as const };
   }
+  if (!owned) return fail(409, "stale_fence");
   await deps.pool.query(
-    "UPDATE outbox SET status = 'pending', lease_until = NULL WHERE event_id = $1 AND status IN ('pending','leased')",
-    [input.eventId],
+    "UPDATE outbox SET status = 'pending', lease_until = NULL, fence_token = NULL WHERE event_id = $1 AND fence_token = $2",
+    [input.eventId, input.fenceToken],
   );
   return { ok: true as const, duplicate: false, status: "pending" as const, retry: true, paymentDecisionChanged: false as const };
 }
 
-export async function reportDelivery(deps: Deps, input: {
-  orderId: string;
-  idempotencyKey: string;
-  outcome: "accepted" | "uncertain" | "failed";
-  providerMessageId?: string;
-}) {
-  if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
-  if (!deps.config.fulfillmentLive) return fail(403, "fulfillment_disabled");
-  if (input.outcome !== "accepted" && input.outcome !== "uncertain" && input.outcome !== "failed") return fail(400, "invalid_delivery");
-  if ((input.outcome === "accepted" || input.outcome === "uncertain") && !input.providerMessageId) {
-    return fail(400, "missing_provider_message_id");
-  }
-  const prior = await deps.pool.query<{ payload: { status?: string } }>(
-    "SELECT payload FROM order_events WHERE idempotency_key = $1",
-    [input.idempotencyKey],
-  );
-  if (prior.rows[0]?.payload.status) {
-    return { ok: true as const, duplicate: true, status: prior.rows[0].payload.status, resent: false };
-  }
-  const found = await deps.pool.query<{ status: string; provider_message_id: string | null }>(
-    "SELECT status, provider_message_id FROM fulfillments WHERE order_id = $1 AND receipt_version = 1",
-    [input.orderId],
-  );
-  const current = found.rows[0];
-  if (!current) return fail(409, "fulfillment_not_reserved");
-  if (current.status === "DELIVERED") return { ok: true as const, duplicate: true, status: "DELIVERED", resent: false };
-  if (current.status === "DELIVERY_UNCERTAIN" && input.outcome === "accepted" && input.providerMessageId && input.providerMessageId === current.provider_message_id) {
-    await deps.pool.query("UPDATE fulfillments SET status = 'DELIVERED' WHERE order_id = $1 AND receipt_version = 1", [input.orderId]);
-    await deps.pool.query("UPDATE orders SET status = 'DELIVERED' WHERE id = $1", [input.orderId]);
-    return { ok: true as const, duplicate: false, status: "DELIVERED", reconciled: true, resent: false };
-  }
-  if (current.status === "DELIVERY_UNCERTAIN") return fail(409, "reconcile_required");
-  const status = input.outcome === "accepted" ? "DELIVERED" : input.outcome === "uncertain" ? "DELIVERY_UNCERTAIN" : "FULFILLMENT_FAILED";
-  await deps.pool.query(
-    "UPDATE fulfillments SET status = $2, provider_message_id = COALESCE($3, provider_message_id) WHERE order_id = $1 AND receipt_version = 1",
-    [input.orderId, status, input.providerMessageId ?? null],
-  );
-  if (status === "DELIVERED") await deps.pool.query("UPDATE orders SET status = 'DELIVERED' WHERE id = $1", [input.orderId]);
-  await deps.pool.query(
-    `INSERT INTO order_events (id, order_id, event_type, idempotency_key, payload, created_at)
-     VALUES ($1,$2,'delivery.report',$3,$4::jsonb,now())
-     ON CONFLICT (idempotency_key) DO NOTHING`,
-    [randomUUID(), input.orderId, input.idempotencyKey, JSON.stringify({ status, resent: false })],
-  );
-  return { ok: true as const, duplicate: false, status, resent: false };
-}
+type OutboxRow = {
+  event_id: string;
+  topic: string;
+  payload: unknown;
+  status: string;
+  created_at: Date;
+  attempt_count: number;
+};
 
-type OutboxRow = { event_id: string; topic: string; payload: unknown; status: string; created_at: Date; attempt_count: number };
+type ClaimRow = OutboxRow & { fence_generation: number };
 
 function outboxEvent(row: OutboxRow) {
   return {
@@ -562,25 +536,62 @@ export async function listOutbox(deps: Deps) {
   return { ok: true as const, events: rows.rows.map(outboxEvent) };
 }
 
-export async function claimOutbox(deps: Deps, input: { eventId: string; leaseSeconds?: number }) {
+function claimResult(row: ClaimRow, seconds: number, fenceToken: string, renewed: boolean) {
+  return {
+    ok: true as const,
+    duplicate: false as const,
+    renewed,
+    leaseSeconds: seconds,
+    fenceToken,
+    fenceGeneration: row.fence_generation,
+    event: outboxEvent(row),
+  };
+}
+
+export async function claimOutbox(deps: Deps, input: { eventId: string; leaseSeconds?: number; fenceToken?: string }) {
   if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
   const seconds = Math.min(300, Math.max(30, input.leaseSeconds ?? 120));
-  const claimed = await deps.pool.query<OutboxRow>(
+  if (input.fenceToken) {
+    const renewed = await deps.pool.query<ClaimRow>(
+      `UPDATE outbox
+       SET lease_until = now() + make_interval(secs => $2::integer)
+       WHERE event_id = $1 AND status = 'leased' AND fence_token = $3 AND lease_until > now()
+       RETURNING event_id, topic, payload, status, created_at, attempt_count, fence_generation`,
+      [input.eventId, seconds, input.fenceToken],
+    );
+    if (renewed.rows[0]) return claimResult(renewed.rows[0], seconds, input.fenceToken, true);
+    const current = await deps.pool.query<{ status: string; fence_token: string | null }>(
+      "SELECT status, fence_token FROM outbox WHERE event_id = $1",
+      [input.eventId],
+    );
+    if (!current.rowCount) return fail(404, "event_not_found");
+    if (current.rows[0].status === "audited" || current.rows[0].status === "mail_accepted" || current.rows[0].status === "mail_uncertain") {
+      return { ok: true as const, duplicate: true as const, status: current.rows[0].status };
+    }
+    if (current.rows[0].fence_token === input.fenceToken) return fail(409, "stale_fence");
+    return fail(409, "lease_held");
+  }
+  const fenceToken = randomBytes(32).toString("base64url");
+  const claimed = await deps.pool.query<ClaimRow>(
     `UPDATE outbox
-     SET status = 'leased', lease_until = now() + make_interval(secs => $2::integer), attempt_count = attempt_count + 1
+     SET status = 'leased',
+         lease_until = now() + make_interval(secs => $2::integer),
+         attempt_count = attempt_count + 1,
+         fence_token = $3,
+         fence_generation = fence_generation + 1
      WHERE event_id = $1 AND (
        (status = 'pending' AND (lease_until IS NULL OR lease_until <= now()))
        OR (status = 'leased' AND lease_until <= now())
      )
-     RETURNING event_id, topic, payload, status, created_at, attempt_count`,
-    [input.eventId, seconds],
+     RETURNING event_id, topic, payload, status, created_at, attempt_count, fence_generation`,
+    [input.eventId, seconds, fenceToken],
   );
-  if (claimed.rows[0]) return { ok: true as const, duplicate: false, leaseSeconds: seconds, event: outboxEvent(claimed.rows[0]) };
+  if (claimed.rows[0]) return claimResult(claimed.rows[0], seconds, fenceToken, false);
   const current = await deps.pool.query<{ status: string }>("SELECT status FROM outbox WHERE event_id = $1", [input.eventId]);
   if (!current.rowCount) return fail(404, "event_not_found");
   const status = current.rows[0].status;
   if (status === "audited" || status === "mail_accepted" || status === "mail_uncertain") {
-    return { ok: true as const, duplicate: true, status };
+    return { ok: true as const, duplicate: true as const, status };
   }
   return fail(409, "lease_held");
 }
@@ -595,57 +606,8 @@ export async function readReceiptObject(deps: Deps, input: { orderId: string; ob
   if (!row) return fail(404, "object_not_found");
   const bytes = await deps.storage.getPrivate(input.objectKey, input.orderId);
   if (!bytes) return fail(404, "object_not_found");
+  if (!receiptHashMatches(bytes, row.content_sha256)) return fail(409, "receipt_hash_mismatch");
   return { ok: true as const, contentType: row.content_type, sha256: row.content_sha256, bytesBase64: bytes.toString("base64") };
-}
-
-export async function reportRequestSend(deps: Deps, input: {
-  eventId: string;
-  idempotencyKey: string;
-  outcome: "accepted" | "uncertain" | "failed";
-  providerMessageId?: string;
-}) {
-  if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
-  const event = await deps.pool.query<{ topic: string; status: string; payload: { requestId?: string } }>(
-    "SELECT topic, status, payload FROM outbox WHERE event_id = $1",
-    [input.eventId],
-  );
-  if (event.rows[0]?.topic !== "request.received") return fail(404, "request_event_not_found");
-  if (event.rows[0].status === "mail_accepted") {
-    return { ok: true as const, duplicate: true, mailState: "accepted" as const, resent: false, emailSentByBackend: false };
-  }
-  if (input.outcome !== "accepted" && input.outcome !== "uncertain" && input.outcome !== "failed") return fail(400, "invalid_request_send");
-  if ((input.outcome === "accepted" || input.outcome === "uncertain") && !input.providerMessageId) {
-    return fail(400, "missing_provider_message_id");
-  }
-  const prior = await deps.pool.query<{ payload: { mailState?: string; providerMessageId?: string } }>(
-    "SELECT payload FROM order_events WHERE idempotency_key = $1",
-    [input.idempotencyKey],
-  );
-  if (prior.rows[0]?.payload.mailState) {
-    return { ok: true as const, duplicate: true, mailState: prior.rows[0].payload.mailState, resent: false, emailSentByBackend: false };
-  }
-  const uncertain = await deps.pool.query<{ payload: { providerMessageId?: string } }>(
-    "SELECT payload FROM order_events WHERE event_type = 'request.mail' AND payload->>'eventId' = $1 AND payload->>'mailState' = 'uncertain'",
-    [input.eventId],
-  );
-  if (uncertain.rows[0]) {
-    if (input.outcome === "accepted" && input.providerMessageId && input.providerMessageId === uncertain.rows[0].payload.providerMessageId) {
-      await deps.pool.query("UPDATE outbox SET status = 'mail_accepted', lease_until = NULL WHERE event_id = $1", [input.eventId]);
-      return { ok: true as const, duplicate: false, mailState: "accepted" as const, reconciled: true, resent: false, emailSentByBackend: false };
-    }
-    return fail(409, "reconcile_required");
-  }
-  const mailState = input.outcome === "accepted" ? "accepted" : input.outcome === "uncertain" ? "uncertain" : "failed";
-  await deps.pool.query(
-    `INSERT INTO order_events (id, order_id, event_type, idempotency_key, payload, created_at)
-     VALUES ($1,NULL,'request.mail',$2,$3::jsonb,now())
-     ON CONFLICT (idempotency_key) DO NOTHING`,
-    [randomUUID(), input.idempotencyKey, JSON.stringify({ eventId: input.eventId, requestId: event.rows[0].payload.requestId, mailState, providerMessageId: input.providerMessageId ?? null, resent: false })],
-  );
-  if (mailState === "accepted") await deps.pool.query("UPDATE outbox SET status = 'mail_accepted', lease_until = NULL WHERE event_id = $1", [input.eventId]);
-  if (mailState === "uncertain") await deps.pool.query("UPDATE outbox SET status = 'mail_uncertain', lease_until = NULL WHERE event_id = $1", [input.eventId]);
-  if (mailState === "failed") await deps.pool.query("UPDATE outbox SET status = 'pending', lease_until = NULL WHERE event_id = $1 AND status IN ('pending','leased')", [input.eventId]);
-  return { ok: true as const, duplicate: false, mailState, resent: false, emailSentByBackend: false };
 }
 
 export async function redeemDownload(deps: Deps, input: { token: string; sku: string }) {
