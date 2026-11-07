@@ -25,21 +25,23 @@ export default function CheckoutPage() {
   const [buyNowSku, setBuyNowSku] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [method, setMethod] = useState<"gcash" | "gotyme">("gcash");
-  const [paidAt, setPaidAt] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [result, setResult] = useState<Result>({ kind: "idle" });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const nextMode = params.get("mode") === "buy-now" ? "buy-now" : "cart";
-    setMode(nextMode);
-    if (nextMode === "buy-now") setBuyNowSku(readBuyNow()?.sku ?? null);
+    const handle = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const nextMode = params.get("mode") === "buy-now" ? "buy-now" : "cart";
+      setMode(nextMode);
+      if (nextMode === "buy-now") setBuyNowSku(readBuyNow()?.sku ?? null);
+    }, 0);
     void fetch("/api/blkjn/capabilities/")
       .then((response) => response.json())
       .then((body: Capabilities) => setCapabilities(body))
       .catch(() => setCapabilities(null));
+    return () => window.clearTimeout(handle);
   }, []);
 
   const lines = useMemo(() => {
@@ -70,7 +72,6 @@ export default function CheckoutPage() {
     }
     setBusy(true);
     try {
-      const claimed = `${paidAt}:00+08:00`;
       const orderResponse = await fetch("/api/blkjn/orders/", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -78,7 +79,6 @@ export default function CheckoutPage() {
           buyerEmail: email,
           paymentMethod: method,
           lines: lines.map((line) => ({ sku: line.sku, quantity: line.quantity })),
-          buyerPaymentClaimedAt: claimed,
         }),
       });
       const orderBody = await orderResponse.json() as { error?: string; orderId?: string; accessToken?: string; headline?: string };
@@ -158,8 +158,6 @@ export default function CheckoutPage() {
               ? "Owner QR is configured."
               : `${method === "gcash" ? "GCash" : "GoTyme"} QR unavailable until the owner image is configured. A static QR does not set the exact PHP amount.`}
           </p>
-          <label htmlFor="paid-at">Payment date and time (Asia/Manila)</label>
-          <input id="paid-at" type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} required />
           <label htmlFor="receipt">Payment receipt</label>
           <input id="receipt" type="file" accept="image/png,image/jpeg,application/pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           <button type="submit" data-action="submit-receipt" disabled={busy || lines.length === 0}>

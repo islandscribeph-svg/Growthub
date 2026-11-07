@@ -77,18 +77,19 @@ test("concurrent reference claims have one winner and same-order retry is quiet"
     buyerEmail: "buyer-one@example.com",
     paymentMethod: "gcash",
     lines: [{ sku: "BLKJN-P01", quantity: 1, unitPhp: 1 }],
-    buyerPaymentClaimedAt: paidAt,
   });
   const second = await createOrder(deps, {
     buyerEmail: "buyer-two@example.com",
     paymentMethod: "gcash",
     lines: [{ sku: "BLKJN-P01", quantity: 1 }],
-    buyerPaymentClaimedAt: paidAt,
   });
   assert.equal(first.ok && second.ok, true);
   if (!first.ok || !second.ok) return;
   assert.equal(first.totalCentavos, 9900);
-  clock = new Date("2026-11-08T00:10:00+08:00");
+  clock = new Date("2026-11-07T23:55:00+08:00");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+  assert.equal((await submitReceipt(deps, { orderId: first.orderId, accessToken: first.accessToken, idempotencyKey: "up-a", bytes: png })).ok, true);
+  assert.equal((await submitReceipt(deps, { orderId: second.orderId, accessToken: second.accessToken, idempotencyKey: "up-b", bytes: png })).ok, true);
   const [left, right] = await Promise.all([
     applyExtraction(deps, { orderId: first.orderId, idempotencyKey: "extract-a", extraction: extraction() }),
     applyExtraction(deps, { orderId: second.orderId, idempotencyKey: "extract-b", extraction: extraction() }),
@@ -99,7 +100,7 @@ test("concurrent reference claims have one winner and same-order retry is quiet"
   assert.equal(retry.ok && retry.duplicate, true);
   const grants = await pool.query("SELECT count(*)::int AS count FROM download_grants");
   const claims = await pool.query("SELECT count(*)::int AS count FROM payment_reference_claims");
-  assert.equal(grants.rows[0]?.count, 1);
+  assert.equal(grants.rows[0]?.count, 0);
   assert.equal(claims.rows[0]?.count, 1);
   const rejected = await pool.query("SELECT status FROM orders WHERE id = $1", [
     left.ok && left.outcome === "DUPLICATE_REFERENCE_REJECTED" ? first.orderId : second.orderId,
@@ -144,7 +145,6 @@ test("receipt upload is durable once and an audit failure does not change the de
     buyerEmail: "buyer@example.com",
     paymentMethod: "gcash",
     lines: [{ sku: "BLKJN-P02", quantity: 1 }],
-    buyerPaymentClaimedAt: paidAt,
   });
   assert.equal(order.ok, true);
   if (!order.ok) return;
@@ -188,11 +188,12 @@ test("an uncertain send does not mark the order delivered", async () => {
     buyerEmail: "buyer@example.com",
     paymentMethod: "gcash",
     lines: [{ sku: "BLKJN-P01", quantity: 1 }],
-    buyerPaymentClaimedAt: paidAt,
   });
   assert.equal(order.ok, true);
   if (!order.ok) return;
-  clock = new Date("2026-11-08T00:10:00+08:00");
+  clock = new Date("2026-11-07T23:55:00+08:00");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+  assert.equal((await submitReceipt(deps, { orderId: order.orderId, accessToken: order.accessToken, idempotencyKey: "up-u", bytes: png })).ok, true);
   const result = await applyExtraction(deps, {
     orderId: order.orderId,
     idempotencyKey: "extract-uncertain",

@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_method text CHECK (payment_method IN ('gcash', 'gotyme')),
   quote_expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL,
-  buyer_payment_claimed_at timestamptz,
   test_only boolean NOT NULL
 );
 

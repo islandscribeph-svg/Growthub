@@ -16,6 +16,7 @@ export type AppConfig = {
   s3Bucket: string | null;
   s3AccessKey: string | null;
   s3SecretKey: string | null;
+  s3Region: string;
   makeSigningSecret: string | null;
   recipientName: string | null;
   gcashIdentifier: string | null;
@@ -70,6 +71,7 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     s3Bucket: env.BLKJN_S3_BUCKET?.trim() || null,
     s3AccessKey: env.BLKJN_S3_ACCESS_KEY?.trim() || null,
     s3SecretKey: env.BLKJN_S3_SECRET_KEY?.trim() || null,
+    s3Region: env.BLKJN_S3_REGION?.trim() || "auto",
     makeSigningSecret: env.BLKJN_MAKE_SIGNING_SECRET?.trim() || null,
     recipientName: env.BLKJN_RECIPIENT_NAME?.trim() || null,
     gcashIdentifier: env.BLKJN_GCASH_IDENTIFIER?.trim() || null,

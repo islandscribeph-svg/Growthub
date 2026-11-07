@@ -47,7 +47,7 @@ Tests pass these values explicitly. They are synthetic, not the owner's live pol
 
 The browser never supplies the amount that is compared. Extraction input is parsed against an allowlist. Unknown fields and instruction-like text are ignored as data. Nothing in that payload is evaluated or fetched.
 
-Auto-approval requires PHP currency, exact centavo equality, the order's provider, normalized recipient name equality, a configured account identifier match, a completed status, a timezone-aware timestamp inside the order lifecycle and within skew of the buyer's claimed payment time, and confidence at or above the configured minimum.
+Checkout does not ask the buyer for a payment date or time. The payment timestamp comes only from the receipt extraction. Auto-approval requires PHP currency, exact centavo equality, the order's provider, normalized recipient name equality, a configured account identifier match, a completed status, an Asia/Manila timestamp with a `+08:00` offset, that timestamp inside the configured window of the server order-created time and not after the server receipt-submitted time plus skew, and confidence at or above the configured minimum. A missing or ambiguous receipt timestamp is `NEEDS_REVIEW`. The server does not invent one, and it does not compare a browser-supplied payment time.
 
 `AUTO_APPROVED_RECEIPT` means those receipt criteria matched. It does not mean a bank confirmed the money.
 

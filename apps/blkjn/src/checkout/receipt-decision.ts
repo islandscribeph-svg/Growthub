@@ -5,8 +5,7 @@ export type ReceiptPolicy = {
   orderTotalCentavos: number;
   orderMethod: "gcash" | "gotyme";
   orderCreatedAt: string;
-  buyerClaimedPaidAt: string;
-  now: string;
+  receiptSubmittedAt: string;
   windowHours: number | null;
   clockSkewMinutes: number | null;
   minConfidence: number | null;
@@ -76,7 +75,11 @@ export function decideReceipt(extraction: Extraction, policy: ReceiptPolicy): Re
   }
   if (!successStatuses.has(extraction.transaction_status.trim().toLowerCase())) reasons.push("status_not_completed");
   const paidAt = extraction.parsed_payment_timestamp ? parseInstant(extraction.parsed_payment_timestamp) : null;
-  if (!extraction.timestamp_timezone || paidAt === null) reasons.push("ambiguous_timestamp");
+  const manilaTimestamp = typeof extraction.parsed_payment_timestamp === "string"
+    && extraction.parsed_payment_timestamp.endsWith("+08:00");
+  if (extraction.timestamp_timezone !== "Asia/Manila" || !manilaTimestamp || paidAt === null) {
+    reasons.push("ambiguous_timestamp");
+  }
   if (policy.minConfidence !== null) {
     for (const field of criticalFields) {
       const confidence = extraction.field_confidence[field];
@@ -84,23 +87,21 @@ export function decideReceipt(extraction: Extraction, policy: ReceiptPolicy): Re
     }
   }
   const created = parseInstant(policy.orderCreatedAt);
-  const claimed = parseInstant(policy.buyerClaimedPaidAt);
-  const now = parseInstant(policy.now);
-  if (created === null || claimed === null || now === null) reasons.push("invalid_lifecycle_timestamp");
+  const submitted = parseInstant(policy.receiptSubmittedAt);
+  if (created === null || submitted === null) reasons.push("invalid_lifecycle_timestamp");
   if (
     reasons.length === 0 &&
     paidAt !== null &&
     created !== null &&
-    claimed !== null &&
-    now !== null &&
+    submitted !== null &&
     policy.windowHours !== null &&
     policy.clockSkewMinutes !== null
   ) {
     const skew = policy.clockSkewMinutes * 60_000;
     const window = policy.windowHours * 60 * 60_000;
-    if (Math.abs(paidAt - claimed) > skew) reasons.push("claimed_time_mismatch");
     if (paidAt < created - skew || paidAt > created + window) reasons.push("outside_lifecycle");
-    if (paidAt > now + skew) reasons.push("future_timestamp");
+    if (submitted < created - skew || submitted > created + window) reasons.push("submission_outside_lifecycle");
+    if (paidAt > submitted + skew) reasons.push("payment_after_submission");
   }
   if (reasons.length > 0) return { outcome: "NEEDS_REVIEW", reasons };
   const recipientIdentity = extraction.provider === "gcash" ? policy.gcashIdentifier ?? "" : policy.gotymeIdentity ?? "";

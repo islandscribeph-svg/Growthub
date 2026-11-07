@@ -11,9 +11,8 @@ export async function POST(request: Request) {
     buyerEmail?: string;
     paymentMethod?: "gcash" | "gotyme";
     lines?: { sku: string; quantity: number; unitPhp?: number }[];
-    buyerPaymentClaimedAt?: string;
   } | null;
-  if (!body?.buyerEmail || !body.paymentMethod || !body.lines || !body.buyerPaymentClaimedAt) {
+  if (!body?.buyerEmail || !body.paymentMethod || !body.lines) {
     return json(400, { error: "invalid_order" });
   }
   try {
@@ -23,7 +22,6 @@ export async function POST(request: Request) {
         buyerEmail: body.buyerEmail,
         paymentMethod: body.paymentMethod,
         lines: body.lines,
-        buyerPaymentClaimedAt: body.buyerPaymentClaimedAt,
       },
     );
     if (!result.ok) return json(result.status, { error: result.error });

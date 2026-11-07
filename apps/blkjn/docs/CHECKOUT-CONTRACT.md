@@ -23,6 +23,7 @@ This is the Phase 1 contract for the personal Make worker. Live purchase, reques
 | `BLKJN_S3_BUCKET` | s3 | Private bucket. |
 | `BLKJN_S3_ACCESS_KEY` | s3 | Secret. |
 | `BLKJN_S3_SECRET_KEY` | s3 | Secret. |
+| `BLKJN_S3_REGION` | s3 | Optional. Defaults to `auto` for S3-compatible endpoints. |
 | `BLKJN_MAKE_SIGNING_SECRET` | Make calls | HMAC secret. Make sends `X-BLKJN-Timestamp` and `X-BLKJN-Signature`. |
 | `BLKJN_RECIPIENT_NAME` | Auto-approval | Exact name after space and case normalization. |
 | `BLKJN_GCASH_IDENTIFIER` | GCash match | Full identifier. Never commit it. |
@@ -42,7 +43,7 @@ Apply `db/001_init.sql` before the first order. The app also runs that SQL from 
 Public JSON routes:
 
 - `GET /api/blkjn/capabilities/` returns checkout `unavailable`, `disabled`, `test`, or `live`, plus QR flags and missing env names. It does not create anything.
-- `POST /api/blkjn/orders/` body `{ buyerEmail, paymentMethod, lines: [{ sku, quantity }], buyerPaymentClaimedAt }`. Client amounts are ignored. `201` returns `orderId`, `publicRef`, `accessToken`, and `totalCentavos`. `403 purchase_disabled` or `503 configuration_unavailable` saves nothing.
+- `POST /api/blkjn/orders/` body `{ buyerEmail, paymentMethod, lines: [{ sku, quantity }] }`. There is no payment date field. Client amounts and any `buyerPaymentClaimedAt` value are ignored. `201` returns `orderId`, `publicRef`, `accessToken`, and `totalCentavos`. `403 purchase_disabled` or `503 configuration_unavailable` saves nothing.
 - `POST /api/blkjn/orders/{orderId}/receipts/` multipart `receipt` and `idempotencyKey`, header `Authorization: Bearer {accessToken}`. Durable success returns the pending receipt copy and `bankSettlementVerified: false`.
 - `POST /api/blkjn/requests/` is `403 request_collection_disabled` until intake is explicitly enabled.
 
@@ -51,6 +52,10 @@ Make routes require `X-BLKJN-Timestamp` (ISO time, within five minutes) and `X-B
 - `GET /api/blkjn/make/outbox/` lists pending events.
 - `POST /api/blkjn/make/extractions/` body `{ orderId, idempotencyKey, extraction }`. Extraction is the allowlisted object only. The worker must not send tool calls. The response `outcome` is `AUTO_APPROVED_RECEIPT`, `NEEDS_REVIEW`, or `DUPLICATE_REFERENCE_REJECTED`. `meansBankSettlement` is false.
 - `POST /api/blkjn/make/audit/` body `{ eventId, ok }`. A failed audit does not change the payment decision.
+- `POST /api/blkjn/make/deliveries/` body `{ orderId, idempotencyKey, outcome, providerMessageId }`. `outcome` is `accepted`, `uncertain`, or `failed`. The same idempotency key returns the stored result and does not send again. An uncertain delivery can be reconciled to delivered only with the same provider message id. A different id returns `409 reconcile_required`. This route returns `403 fulfillment_disabled` while `BLKJN_FULFILLMENT_LIVE` is not `true`.
+- `GET /api/blkjn/downloads/{token}?sku={sku}` returns the private workbook only when fulfillment is live, the grant matches the SKU, and `{BLKJN_DELIVERABLE_ROOT}/{sku}.xlsx` exists. Otherwise it returns `503` or `403` and no file.
+
+The payment timestamp is not an order field. Make's extraction supplies `parsed_payment_timestamp` and `timestamp_timezone`. Auto-approval requires `Asia/Manila` and a `+08:00` timestamp that falls between the server order `created_at` and the server receipt `created_at`, inside `BLKJN_PAYMENT_WINDOW_HOURS` and `BLKJN_CLOCK_SKEW_MINUTES`. Missing or ambiguous timestamps are `NEEDS_REVIEW`.
 
 Outbox topics: `receipt.submitted`, `receipt.duplicate_rejected`, `request.received`.
 
@@ -66,4 +71,4 @@ Sheet cells that start with `=`, `+`, `-`, `@`, or a tab are prefixed with a sin
 
 ## Still blocked
 
-QR image files, the BLKJN database, object storage, sheet ID, sender, OCR provider, and deliverable workbook files are not provisioned here. The S3 adapter is selected only when its four variables are present; this build does not ship a fake successful upload for it.
+QR image files, the BLKJN database, S3 credentials, sheet ID, sender, OCR provider, and deliverable workbook files are not provisioned here. When `BLKJN_STORAGE_DRIVER=s3` and the endpoint, bucket, access key, secret, and receipt size limit are set, receipt bytes are uploaded with the AWS SDK to a private `receipts/{orderId}/{object}` key. A read for a different order does not call storage. Missing credentials leave storage unset and uploads return `503`. The payment time is read only from receipt extraction and compared with the server order and receipt-submission timestamps in Asia/Manila.

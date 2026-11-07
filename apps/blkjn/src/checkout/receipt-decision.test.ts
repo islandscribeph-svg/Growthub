@@ -7,15 +7,14 @@ import { canonicalReferenceKey, normalizeReference } from "./reference.ts";
 
 const orderCreated = "2026-11-07T22:00:00+08:00";
 const paidAt = "2026-11-07T23:50:00+08:00";
-const processedNextDay = "2026-11-08T00:30:00+08:00";
+const receiptSubmitted = "2026-11-07T23:55:00+08:00";
 
 function policy(overrides: Record<string, unknown> = {}) {
   return {
     orderTotalCentavos: 9900,
     orderMethod: "gcash" as const,
     orderCreatedAt: orderCreated,
-    buyerClaimedPaidAt: paidAt,
-    now: processedNextDay,
+    receiptSubmittedAt: receiptSubmitted,
     windowHours: 6,
     clockSkewMinutes: 5,
     minConfidence: 0.9,
@@ -144,7 +143,7 @@ test("missing critical fields and low confidence review without defaults", () =>
   );
 });
 
-test("payment after midnight is judged from the payment timestamp, not the processing day", () => {
+test("payment after midnight uses the receipt timestamp against order and submission times", () => {
   const decision = decideReceipt(
     extraction({
       payment_timestamp_raw: "2026-11-08T00:20:00+08:00",
@@ -152,24 +151,27 @@ test("payment after midnight is judged from the payment timestamp, not the proce
     }),
     policy({
       orderCreatedAt: "2026-11-07T23:00:00+08:00",
-      buyerClaimedPaidAt: "2026-11-08T00:20:00+08:00",
-      now: "2026-11-08T09:00:00+08:00",
+      receiptSubmittedAt: "2026-11-08T00:40:00+08:00",
     }),
   );
   assert.equal(decision.outcome, "AUTO_APPROVED_RECEIPT");
 });
 
-test("unconfigured window, date-only timestamp, and future timestamp review", () => {
+test("unconfigured window, date-only timestamp, and payment after submission review", () => {
   assert.equal(decideReceipt(extraction(), policy({ windowHours: null })).outcome, "NEEDS_REVIEW");
   assert.equal(
-    decideReceipt(extraction({ parsed_payment_timestamp: "2026-11-07" }), policy()).outcome,
+    decideReceipt(extraction({ parsed_payment_timestamp: "2026-11-07", timestamp_timezone: null }), policy()).outcome,
     "NEEDS_REVIEW",
   );
   assert.equal(
     decideReceipt(
       extraction({ parsed_payment_timestamp: "2026-11-09T00:00:00+08:00" }),
-      policy({ buyerClaimedPaidAt: "2026-11-09T00:00:00+08:00" }),
+      policy(),
     ).outcome,
+    "NEEDS_REVIEW",
+  );
+  assert.equal(
+    decideReceipt(extraction({ timestamp_timezone: "UTC", parsed_payment_timestamp: "2026-11-07T15:50:00Z" }), policy()).outcome,
     "NEEDS_REVIEW",
   );
 });

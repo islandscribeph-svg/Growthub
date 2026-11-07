@@ -49,14 +49,13 @@ function policyFor(config: AppConfig, order: {
   total_centavos: number;
   payment_method: "gcash" | "gotyme";
   created_at: Date;
-  buyer_payment_claimed_at: Date;
-}, now: Date): ReceiptPolicy {
+  receipt_submitted_at: Date;
+}): ReceiptPolicy {
   return {
     orderTotalCentavos: order.total_centavos,
     orderMethod: order.payment_method,
     orderCreatedAt: order.created_at.toISOString(),
-    buyerClaimedPaidAt: order.buyer_payment_claimed_at.toISOString(),
-    now: now.toISOString(),
+    receiptSubmittedAt: order.receipt_submitted_at.toISOString(),
     windowHours: config.paymentWindowHours,
     clockSkewMinutes: config.clockSkewMinutes,
     minConfidence: config.minConfidence,
@@ -87,7 +86,6 @@ export async function createOrder(deps: Deps, input: {
   buyerEmail: string;
   paymentMethod: "gcash" | "gotyme";
   lines: QuoteLineInput[];
-  buyerPaymentClaimedAt: string;
 }) {
   if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
   if (deps.config.mode === "live" && !deps.config.purchaseLive) return fail(403, "purchase_disabled");
@@ -96,8 +94,6 @@ export async function createOrder(deps: Deps, input: {
   const email = cleanEmail(input.buyerEmail);
   if (!email) return fail(400, "invalid_email");
   if (input.paymentMethod !== "gcash" && input.paymentMethod !== "gotyme") return fail(400, "invalid_method");
-  const claimed = Date.parse(input.buyerPaymentClaimedAt);
-  if (Number.isNaN(claimed)) return fail(400, "invalid_payment_time");
   const quote = quoteLines(input.lines, { maxQuantity: deps.config.maxQuantity });
   if (!quote.ok) return fail(400, quote.reason);
   const now = (deps.now ?? (() => new Date()))();
@@ -108,8 +104,8 @@ export async function createOrder(deps: Deps, input: {
   await withTransaction(deps.pool, async (client) => {
     await client.query(
       `INSERT INTO orders
-        (id, public_ref, environment, access_token_hash, buyer_email, currency, total_centavos, catalogue_version, status, payment_method, quote_expires_at, created_at, buyer_payment_claimed_at, test_only)
-       VALUES ($1,$2,$3,$4,$5,'PHP',$6,$7,'AWAITING_PAYMENT',$8,$9,$10,$11,$12)`,
+        (id, public_ref, environment, access_token_hash, buyer_email, currency, total_centavos, catalogue_version, status, payment_method, quote_expires_at, created_at, test_only)
+       VALUES ($1,$2,$3,$4,$5,'PHP',$6,$7,'AWAITING_PAYMENT',$8,$9,$10,$11)`,
       [
         orderId,
         ref,
@@ -121,7 +117,6 @@ export async function createOrder(deps: Deps, input: {
         input.paymentMethod,
         expires.toISOString(),
         now.toISOString(),
-        new Date(claimed).toISOString(),
         !deps.config.purchaseLive,
       ],
     );
@@ -182,7 +177,11 @@ export async function submitReceipt(deps: Deps, input: {
   if (existing.rowCount) {
     return { ok: true as const, duplicate: true, ...receiptPendingMessage(order.public_ref), bankSettlementVerified: false };
   }
-  const stored = await deps.storage.putPrivate({ orderId: input.orderId, bytes: input.bytes });
+  const stored = await deps.storage.putPrivate({
+    orderId: input.orderId,
+    bytes: input.bytes,
+    contentType: sniffed.contentType,
+  });
   const now = (deps.now ?? (() => new Date()))();
   await withTransaction(deps.pool, async (client) => {
     const inserted = await client.query(
@@ -222,11 +221,16 @@ export async function applyExtraction(deps: Deps, input: {
     total_centavos: number;
     payment_method: "gcash" | "gotyme";
     created_at: Date;
-    buyer_payment_claimed_at: Date | null;
     buyer_email: string;
-  }>("SELECT id, public_ref, status, total_centavos, payment_method, created_at, buyer_payment_claimed_at, buyer_email FROM orders WHERE id = $1", [input.orderId]);
+  }>("SELECT id, public_ref, status, total_centavos, payment_method, created_at, buyer_email FROM orders WHERE id = $1", [input.orderId]);
   const order = loaded.rows[0];
-  if (!order || !order.buyer_payment_claimed_at) return fail(404, "order_not_found");
+  if (!order) return fail(404, "order_not_found");
+  const submitted = await deps.pool.query<{ created_at: Date }>(
+    "SELECT created_at FROM receipt_submissions WHERE order_id = $1 ORDER BY created_at DESC LIMIT 1",
+    [input.orderId],
+  );
+  const receiptSubmittedAt = submitted.rows[0]?.created_at;
+  if (!receiptSubmittedAt) return fail(409, "receipt_not_submitted");
   if (order.status === "DELIVERED") return fail(409, "order_closed");
   const prior = await deps.pool.query<{ payload: { outcome?: string; canonicalKey?: string } }>(
     "SELECT payload FROM order_events WHERE idempotency_key = $1",
@@ -240,8 +244,8 @@ export async function applyExtraction(deps: Deps, input: {
     total_centavos: order.total_centavos,
     payment_method: order.payment_method,
     created_at: order.created_at,
-    buyer_payment_claimed_at: order.buyer_payment_claimed_at,
-  }, clock));
+    receipt_submitted_at: receiptSubmittedAt,
+  }));
   if (decision.outcome === "NEEDS_REVIEW") {
     await recordDecision(deps, order.id, input.idempotencyKey, "NEEDS_REVIEW", { reasons: decision.reasons }, clock);
     return { ok: true as const, duplicate: false, outcome: "NEEDS_REVIEW" as const, filesReleased: false };
@@ -290,8 +294,11 @@ export async function applyExtraction(deps: Deps, input: {
        RETURNING id`,
       [randomUUID(), order.id, clock.toISOString()],
     );
-    if (fulfillment.rows[0] && deps.config.mode === "test" && deps.config.downloadTtlMinutes && deps.config.downloadMaxCount) {
+    const issued: { sku: string; token: string }[] = [];
+    if (fulfillment.rows[0] && deps.config.fulfillmentLive && deps.config.downloadTtlMinutes && deps.config.downloadMaxCount) {
       for (const line of (await client.query<{ sku: string }>("SELECT sku FROM order_lines WHERE order_id = $1", [order.id])).rows) {
+        const raw = token();
+        issued.push({ sku: line.sku, token: raw });
         await client.query(
           `INSERT INTO download_grants (id, fulfillment_id, order_id, sku, token_hash, expires_at, remaining_count, created_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -300,13 +307,29 @@ export async function applyExtraction(deps: Deps, input: {
             fulfillment.rows[0].id,
             order.id,
             line.sku,
-            hash(token()),
+            hash(raw),
             new Date(clock.getTime() + deps.config.downloadTtlMinutes * 60_000).toISOString(),
             deps.config.downloadMaxCount,
             clock.toISOString(),
           ],
         );
       }
+    }
+    if (fulfillment.rows[0]) {
+      await client.query(
+        `INSERT INTO outbox (id, event_id, topic, payload, status, created_at)
+         VALUES ($1,$2,$3,$4::jsonb,'pending',$5)
+         ON CONFLICT (event_id) DO NOTHING`,
+        [
+          randomUUID(),
+          `fulfillment.${order.id}`,
+          deps.config.fulfillmentLive ? "fulfillment.requested" : "fulfillment.held",
+          JSON.stringify(deps.config.fulfillmentLive
+            ? { orderId: order.id, orderRef: order.public_ref, grants: issued }
+            : { orderId: order.id, orderRef: order.public_ref, reason: "fulfillment_disabled" }),
+          clock.toISOString(),
+        ],
+      );
     }
     await client.query(
       `INSERT INTO order_events (id, order_id, event_type, idempotency_key, payload, created_at)
@@ -407,6 +430,49 @@ export async function acknowledgeAudit(deps: Deps, input: { eventId: string; ok:
   );
   if (!updated.rowCount) return fail(404, "event_not_found");
   return { ok: true as const, paymentDecisionChanged: false };
+}
+
+export async function reportDelivery(deps: Deps, input: {
+  orderId: string;
+  idempotencyKey: string;
+  outcome: "accepted" | "uncertain" | "failed";
+  providerMessageId?: string;
+}) {
+  if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
+  if (!deps.config.fulfillmentLive) return fail(403, "fulfillment_disabled");
+  const prior = await deps.pool.query<{ payload: { status?: string } }>(
+    "SELECT payload FROM order_events WHERE idempotency_key = $1",
+    [input.idempotencyKey],
+  );
+  if (prior.rows[0]?.payload.status) {
+    return { ok: true as const, duplicate: true, status: prior.rows[0].payload.status, resent: false };
+  }
+  const found = await deps.pool.query<{ status: string; provider_message_id: string | null }>(
+    "SELECT status, provider_message_id FROM fulfillments WHERE order_id = $1 AND receipt_version = 1",
+    [input.orderId],
+  );
+  const current = found.rows[0];
+  if (!current) return fail(409, "fulfillment_not_reserved");
+  if (current.status === "DELIVERED") return { ok: true as const, duplicate: true, status: "DELIVERED", resent: false };
+  if (current.status === "DELIVERY_UNCERTAIN" && input.outcome === "accepted" && input.providerMessageId && input.providerMessageId === current.provider_message_id) {
+    await deps.pool.query("UPDATE fulfillments SET status = 'DELIVERED' WHERE order_id = $1 AND receipt_version = 1", [input.orderId]);
+    await deps.pool.query("UPDATE orders SET status = 'DELIVERED' WHERE id = $1", [input.orderId]);
+    return { ok: true as const, duplicate: false, status: "DELIVERED", reconciled: true, resent: false };
+  }
+  if (current.status === "DELIVERY_UNCERTAIN") return fail(409, "reconcile_required");
+  const status = input.outcome === "accepted" ? "DELIVERED" : input.outcome === "uncertain" ? "DELIVERY_UNCERTAIN" : "FULFILLMENT_FAILED";
+  await deps.pool.query(
+    "UPDATE fulfillments SET status = $2, provider_message_id = COALESCE($3, provider_message_id) WHERE order_id = $1 AND receipt_version = 1",
+    [input.orderId, status, input.providerMessageId ?? null],
+  );
+  if (status === "DELIVERED") await deps.pool.query("UPDATE orders SET status = 'DELIVERED' WHERE id = $1", [input.orderId]);
+  await deps.pool.query(
+    `INSERT INTO order_events (id, order_id, event_type, idempotency_key, payload, created_at)
+     VALUES ($1,$2,'delivery.report',$3,$4::jsonb,now())
+     ON CONFLICT (idempotency_key) DO NOTHING`,
+    [randomUUID(), input.orderId, input.idempotencyKey, JSON.stringify({ status, resent: false })],
+  );
+  return { ok: true as const, duplicate: false, status, resent: false };
 }
 
 export async function listOutbox(deps: Deps) {
