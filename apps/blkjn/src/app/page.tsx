@@ -97,8 +97,8 @@ export default function HomePage() {
           </li>
         </ol>
         <p className="quiet">
-          Concept only: checkout and downloads are not live. No fulfillment
-          details are finalized.
+          Checkout and downloads are not live. Prices on the Store are in PHP
+          and are the same for every buyer.
         </p>
       </section>
     </PageShell>

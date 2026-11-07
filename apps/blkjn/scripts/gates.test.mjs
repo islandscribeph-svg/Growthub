@@ -77,7 +77,10 @@ for (const [name, html] of Object.entries(pages)) {
   assert.doesNotMatch(html, /href="[^"]+\.zip(?:["?#]|$)/i, `${name} has no archive links`);
   assert.doesNotMatch(html, /mailto:/i, `${name} drafts no email`);
   assert.doesNotMatch(html, /paypal\.com|stripe\.com|checkout\.paypal/i, `${name} has no payment links`);
-  assert.doesNotMatch(html, /₱\s*\d|\$\s*\d|\bPHP\s*\d|\bUSD\b|\bEUR\b|geolocation/i, `${name} has no price amount`);
+  assert.doesNotMatch(html, /₱\s*\d|\$\s*\d|\bUSD\b|\bEUR\b|geolocation/i, `${name} has no foreign currency`);
+  if (name !== "store") {
+    assert.doesNotMatch(html, /\bPHP\s*\d/, `${name} does not list PHP amounts`);
+  }
 }
 
 function decode(html) {
@@ -96,7 +99,7 @@ assert.match(home, /PLANNED · AUTOMATION GUIDES/);
 assert.match(home, /No guide content is tested or live\./);
 assert.match(home, /hero-desktop\.png/);
 assert.match(home, /hero-mobile\.png/);
-assert.doesNotMatch(home, /product-card|data-product-id/, "Home has no product gallery");
+assert.doesNotMatch(home, /product-card|data-product-id|images\/catalogue\//, "Home has no product gallery");
 const homeText = decode(home);
 for (const name of productNames) {
   assert.equal(homeText.includes(name), false, `Home listed a product: ${name}`);
@@ -106,11 +109,47 @@ for (const pack of packNames) {
   assert.match(store, new RegExp(asHtml(pack).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 }
 
+const approvedPricesPhp = [99, 79, 99, 129, 99, 129, 129, 99, 79, 79, 79, 99, 129, 129, 99];
+
+const thumbnailFiles = [
+  "blkjn-p01-va-task-weekly-update.webp",
+  "blkjn-p02-client-onboarding-offboarding.webp",
+  "blkjn-p03-recurring-admin-sop.webp",
+  "blkjn-p04-billable-hours-retainer.webp",
+  "blkjn-p05-invoice-payment-followup.webp",
+  "blkjn-p06-freelancer-income-expense.webp",
+  "blkjn-p07-lead-client-followup-crm.webp",
+  "blkjn-p08-proposal-quote-tracker.webp",
+  "blkjn-p09-feedback-testimonial-log.webp",
+  "blkjn-p10-meeting-notes-actions.webp",
+  "blkjn-p11-inbox-triage-response-log.webp",
+  "blkjn-p12-content-social-calendar.webp",
+  "blkjn-p13-inventory-stock-level.webp",
+  "blkjn-p14-supplier-purchase-order.webp",
+  "blkjn-p15-subscriptions-renewals.webp",
+];
+
+const articles = store.split("<article").slice(1);
+assert.equal(articles.length, 15);
 for (const [index, name] of productNames.entries()) {
   const id = `BLKJN-P${String(index + 1).padStart(2, "0")}`;
-  assert.match(store, new RegExp(`data-product-id="${id}"`));
-  assert.match(store, new RegExp(asHtml(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const file = thumbnailFiles[index];
+  const pricePhp = approvedPricesPhp[index];
+  const article = articles.find((block) => block.includes(`data-product-id="${id}"`));
+  assert.ok(article, `Missing card for ${id}`);
+  assert.match(article, new RegExp(asHtml(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(article, new RegExp(`src="/images/catalogue/${file}"`));
+  assert.match(article, /width="800"/);
+  assert.match(article, /height="600"/);
+  assert.match(article, new RegExp(`alt="Example sheet from ${asHtml(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  assert.match(article, new RegExp(`data-price-php="${pricePhp}"`));
+  assert.match(article, new RegExp(`>PHP ${pricePhp}<`));
+  assert.match(article, /Includes the blank and example editions\./);
+  assert.equal((article.match(/<img\b/g) ?? []).length, 1);
+  assert.equal((article.match(/data-action="purchase"/g) ?? []).length, 1);
 }
+assert.equal((store.match(/loading="lazy"/g) ?? []).length, 12);
+assert.equal((store.match(/loading="eager"/g) ?? []).length, 3);
 
 assert.equal(buttons(store, "purchase").length, 15);
 assert.equal(buttons(store, "download").length, 15);
@@ -118,8 +157,8 @@ for (const tag of [...buttons(store, "purchase"), ...buttons(store, "download")]
   assert.match(tag, /\bdisabled\b/);
   assert.match(tag, /type="button"/);
 }
-assert.equal((store.match(/Price pending/g) ?? []).length, 15);
-assert.equal((store.match(/data-price="null"/g) ?? []).length, 15);
+assert.equal((store.match(/data-price-php="/g) ?? []).length, 15);
+assert.doesNotMatch(store, /Price pending|data-price="null"/);
 assert.match(store, /ILLUSTRATIVE MAKE\.COM-STYLE SCENARIO/);
 assert.match(store, /Inspect the fictional sample/);
 assert.match(store, /Check the filter condition/);
@@ -128,13 +167,20 @@ assert.match(store, /No guides available yet/);
 assert.match(store, /not tested, functioning, or connected/);
 assert.doesNotMatch(store, /BLKJN-G\d+|guide-sku|Basic VA Admin Kit/i);
 assert.doesNotMatch(store, /BLKJN-Pack-/);
+const guides = store.split('id="automation-guides"')[1];
+assert.ok(guides, "Automation Guides section is missing");
+assert.match(guides, /Phase 2/);
+assert.match(guides, /Not priced/);
+assert.doesNotMatch(guides, /data-action="purchase"|data-price-php|PHP \d|Buy Now/);
 
 assert.match(about, /Bahala Ka Jan\./);
 assert.match(about, /Fictional virtual assistant/);
 assert.match(about, /not a BLKJN team member or customer/);
 assert.match(about, /about-va\.png/);
 assert.match(about, /Compatibility is untested, and not all Excel features transfer\./);
-assert.match(about, /Currency direction: PHP only\. Prices pending\./);
+assert.match(about, /Currency: PHP only\./);
+assert.match(about, /Checkout and downloads are not live\./);
+assert.doesNotMatch(about, /Prices pending|PHP \d/);
 assert.match(about, /Uploaded proof or a redirect\/return alone never unlocks files\./);
 assert.match(about, /server-verified COMPLETED capture/);
 assert.doesNotMatch(about, /testimonial|customer story|our team/i);
@@ -158,8 +204,11 @@ assert.doesNotMatch(request, /<form\b[^>]*\saction="/);
 
 const catalogue = readFileSync(new URL("../src/data/catalogue.ts", import.meta.url), "utf8");
 assert.equal((catalogue.match(/product\(\d+,/g) ?? []).length, 15);
-assert.match(catalogue, /price: null/);
-assert.doesNotMatch(catalogue, /price:\s*\d|blank_file|example_file|pack_zip|\.xlsx/);
+assert.doesNotMatch(catalogue, /price:\s*null|pricePhp:\s*\d|blank_file|example_file|pack_zip|\.xlsx/);
+for (const [index, pricePhp] of approvedPricesPhp.entries()) {
+  const sku = index + 1;
+  assert.match(catalogue, new RegExp(`product\\(${sku},[\\s\\S]*?, ${pricePhp}\\)`));
+}
 assert.match(catalogue, /REQUEST_COLLECTION_ENABLED = false/);
 assert.match(catalogue, /PURCHASE_ENABLED = false/);
 assert.match(catalogue, /DOWNLOAD_ENABLED = false/);
@@ -177,4 +226,4 @@ for (const file of sourceFiles) {
   assert.doesNotMatch(source, /fetch\(|mailto:|paypal\.com|sk_live|api\.stripe/i, file);
 }
 
-console.log("BLKJN gates passed: 15 products, prices null, purchase/download/request disabled.");
+console.log("BLKJN gates passed: 15 products, approved PHP prices, purchase/download/request disabled.");

@@ -63,7 +63,10 @@ export default function AboutPage() {
           Products, checkout and downloads are not live. Private downloads would
           require server authorization.
         </p>
-        <p className="quiet">Currency direction: PHP only. Prices pending.</p>
+        <p className="quiet">
+          Currency: PHP only. The same approved price applies to every buyer and
+          is shown on the Store. Checkout and downloads are not live.
+        </p>
         <article className="safeguard-card">
           <h3>Planned payment safeguards</h3>
           <div className="safeguard-grid">
@@ -83,8 +86,8 @@ export default function AboutPage() {
           </p>
         </article>
         <p className="quiet fine-print">
-          Design proposal only. No live products, payment setup, checkout, or
-          file delivery.
+          Prices are displayed only. No live payment setup, checkout, or file
+          delivery.
         </p>
       </section>
     </PageShell>

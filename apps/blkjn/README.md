@@ -23,14 +23,15 @@ Do not add this app to a root npm workspace. That would change how the Growthub 
 
 - Home, Store, Request, and About.
 - The approved Home v4 hero: the attached monitor photograph is the hero background, with the headline and Browse Store link on top. The mobile hero uses the attached mobile background and keeps the full monitor visible.
-- All 15 catalogue products in five packs. Pack archives are not extra products. Automation Guides are a separate planned section, not SKUs.
+- All 15 catalogue products in five packs. Each Store card shows that product’s example-sheet thumbnail. Pack archives are not extra products. Automation Guides are a separate planned section, not SKUs. Home has no product gallery.
 - An illustrative Make.com-style scenario with three sticky notes. It is not a scenario, connection, or running automation.
 - Request fields are Name, Email, and Request message. The intended future address `peps@blkjn.com` is shown as not connected. The form cannot be submitted.
 - About uses the attached fictional virtual-assistant photograph. It is not a team member, customer, or testimonial.
 
 ## What this draft does not include
 
-- Prices. Every product amount is null. The only currency direction is PHP, with no selector and no geolocation.
+- Approved PHP prices are shown on the Store and are the same for every buyer. There is no currency selector or geolocation. Checkout, payment, downloads, and request collection stay off.
+- Automation Guides stay a later phase. They are not priced and have no purchase action.
 - Workbook files, pack ZIPs, or public download URLs. Blank and Example editions are not published here.
 - A claim that Excel or Google Sheets compatibility was tested. Planned `.xlsx` files are macro-free in the source catalogue, and native Excel and Google Sheets were not verified.
 - PayPal, QR codes, payee details, checkout credentials, or email tests.

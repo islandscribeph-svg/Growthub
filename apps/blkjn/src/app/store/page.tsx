@@ -35,8 +35,8 @@ export default function StorePage() {
         <p className="pill">CATALOGUE · PROPOSED</p>
         <h1>Spreadsheet templates</h1>
         <p className="section-lede">
-          15 proposed products across five packs. Prices pending; checkout and
-          downloads disabled.
+          15 products across five packs. One PHP price for every buyer. Checkout
+          and downloads are disabled.
         </p>
       </section>
 
@@ -63,8 +63,8 @@ export default function StorePage() {
       >
         <h2 id="guides-heading">Automation Guides</h2>
         <p className="section-lede">
-          Planned PDF learning guides · Separate from the 15 spreadsheets · No
-          guides available yet.
+          Phase 2 · Separate from the 15 spreadsheets · Not priced · No guides
+          available yet.
         </p>
         <p className="scenario-label">ILLUSTRATIVE MAKE.COM-STYLE SCENARIO</p>
         <div className="guide-panel">
