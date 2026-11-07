@@ -6,7 +6,13 @@ import { decideReceipt, type ReceiptPolicy } from "./receipt-decision.ts";
 import { parseExtraction } from "./extraction.ts";
 import { duplicateReferenceMessage, receiptPendingMessage } from "./messages.ts";
 import { quoteLines, type QuoteLineInput } from "./quote.ts";
-import { neutralizeRow } from "./sheet.ts";
+import {
+  duplicateRejectedPayload,
+  fulfillmentHeldPayload,
+  fulfillmentRequestedPayload,
+  receiptSubmittedPayload,
+  requestReceivedPayload,
+} from "./make-contract.ts";
 import { sniffReceipt, type ObjectStore } from "./storage.ts";
 
 export type Failure = { ok: false; status: number; error: string };
@@ -183,23 +189,50 @@ export async function submitReceipt(deps: Deps, input: {
     contentType: sniffed.contentType,
   });
   const now = (deps.now ?? (() => new Date()))();
+  const detail = await deps.pool.query<{ public_ref: string; created_at: Date; total_centavos: number; payment_method: "gcash" | "gotyme"; currency: "PHP" }>(
+    "SELECT public_ref, created_at, total_centavos, payment_method, currency FROM orders WHERE id = $1",
+    [input.orderId],
+  );
+  const lines = await deps.pool.query<{ sku: string; title_snapshot: string; quantity: number; unit_centavos: number; line_centavos: number }>(
+    "SELECT sku, title_snapshot, quantity, unit_centavos, line_centavos FROM order_lines WHERE order_id = $1 ORDER BY sku",
+    [input.orderId],
+  );
+  const receiptId = randomUUID();
   await withTransaction(deps.pool, async (client) => {
     const inserted = await client.query(
       `INSERT INTO receipt_submissions (id, order_id, idempotency_key, object_key, content_sha256, content_type, status, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,'stored',$7)
        ON CONFLICT (order_id, idempotency_key) DO NOTHING
        RETURNING id`,
-      [randomUUID(), input.orderId, input.idempotencyKey, stored.objectKey, stored.sha256, sniffed.contentType, now.toISOString()],
+      [receiptId, input.orderId, input.idempotencyKey, stored.objectKey, stored.sha256, sniffed.contentType, now.toISOString()],
     );
     if (!inserted.rowCount) return;
     await client.query("UPDATE orders SET status = 'RECEIPT_SUBMITTED' WHERE id = $1 AND status = 'AWAITING_PAYMENT'", [input.orderId]);
+    const orderRow = detail.rows[0];
+    if (!orderRow) return;
     await client.query(
       `INSERT INTO outbox (id, event_id, topic, payload, status, created_at)
        VALUES ($1,$2,'receipt.submitted',$3::jsonb,'pending',$4)`,
-      [randomUUID(), `receipt.submitted:${input.orderId}:${input.idempotencyKey}`, JSON.stringify(neutralizeRow({
+      [randomUUID(), `receipt.submitted:${input.orderId}:${input.idempotencyKey}`, JSON.stringify(receiptSubmittedPayload({
         orderId: input.orderId,
+        publicRef: orderRow.public_ref,
+        receiptId,
+        idempotencyKey: input.idempotencyKey,
         objectKey: stored.objectKey,
-        sha256: stored.sha256,
+        contentSha256: stored.sha256,
+        contentType: sniffed.contentType,
+        submittedAt: now.toISOString(),
+        orderCreatedAt: new Date(orderRow.created_at).toISOString(),
+        currency: "PHP",
+        totalCentavos: orderRow.total_centavos,
+        paymentMethod: orderRow.payment_method,
+        lines: lines.rows.map((line) => ({
+          sku: line.sku,
+          title: line.title_snapshot,
+          quantity: line.quantity,
+          unitCentavos: line.unit_centavos,
+          lineCentavos: line.line_centavos,
+        })),
       })), now.toISOString()],
     );
   });
@@ -271,7 +304,8 @@ export async function applyExtraction(deps: Deps, input: {
           `INSERT INTO outbox (id, event_id, topic, payload, status, created_at)
            VALUES ($1,$2,'receipt.duplicate_rejected',$3::jsonb,'pending',$4)
            ON CONFLICT (event_id) DO NOTHING`,
-          [randomUUID(), `receipt.duplicate:${order.id}:${input.idempotencyKey}`, JSON.stringify(neutralizeRow({
+          [randomUUID(), `receipt.duplicate:${order.id}:${input.idempotencyKey}`, JSON.stringify(duplicateRejectedPayload({
+            orderId: order.id,
             orderRef: order.public_ref,
             subject: message.subject,
             body: message.body,
@@ -294,11 +328,18 @@ export async function applyExtraction(deps: Deps, input: {
        RETURNING id`,
       [randomUUID(), order.id, clock.toISOString()],
     );
-    const issued: { sku: string; token: string }[] = [];
+    const issued: { sku: string; token: string; downloadPath: string; expiresAt: string; remainingCount: number }[] = [];
     if (fulfillment.rows[0] && deps.config.fulfillmentLive && deps.config.downloadTtlMinutes && deps.config.downloadMaxCount) {
       for (const line of (await client.query<{ sku: string }>("SELECT sku FROM order_lines WHERE order_id = $1", [order.id])).rows) {
         const raw = token();
-        issued.push({ sku: line.sku, token: raw });
+        const expiresAt = new Date(clock.getTime() + deps.config.downloadTtlMinutes * 60_000).toISOString();
+        issued.push({
+          sku: line.sku,
+          token: raw,
+          downloadPath: `/api/blkjn/downloads/${raw}?sku=${encodeURIComponent(line.sku)}`,
+          expiresAt,
+          remainingCount: deps.config.downloadMaxCount,
+        });
         await client.query(
           `INSERT INTO download_grants (id, fulfillment_id, order_id, sku, token_hash, expires_at, remaining_count, created_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -308,7 +349,7 @@ export async function applyExtraction(deps: Deps, input: {
             order.id,
             line.sku,
             hash(raw),
-            new Date(clock.getTime() + deps.config.downloadTtlMinutes * 60_000).toISOString(),
+            expiresAt,
             deps.config.downloadMaxCount,
             clock.toISOString(),
           ],
@@ -325,8 +366,8 @@ export async function applyExtraction(deps: Deps, input: {
           `fulfillment.${order.id}`,
           deps.config.fulfillmentLive ? "fulfillment.requested" : "fulfillment.held",
           JSON.stringify(deps.config.fulfillmentLive
-            ? { orderId: order.id, orderRef: order.public_ref, grants: issued }
-            : { orderId: order.id, orderRef: order.public_ref, reason: "fulfillment_disabled" }),
+            ? fulfillmentRequestedPayload({ orderId: order.id, orderRef: order.public_ref, buyerEmail: order.buyer_email, grants: issued })
+            : fulfillmentHeldPayload({ orderId: order.id, orderRef: order.public_ref })),
           clock.toISOString(),
         ],
       );
@@ -406,12 +447,11 @@ export async function acceptRequest(deps: Deps, input: { name: string; email: st
       await client.query(
         `INSERT INTO outbox (id, event_id, topic, payload, status, created_at)
          VALUES ($1,$2,'request.received',$3::jsonb,'pending',$4)`,
-        [randomUUID(), `request.received:${id}`, JSON.stringify(neutralizeRow({
+        [randomUUID(), `request.received:${id}`, JSON.stringify(requestReceivedPayload({
           requestId: id,
           name,
           email,
           message,
-          replyTo: email,
         })), now.toISOString()],
       );
       return { ok: true as const, requestId: id, status: "accepted" as const };
@@ -424,12 +464,29 @@ export async function acceptRequest(deps: Deps, input: { name: string; email: st
 
 export async function acknowledgeAudit(deps: Deps, input: { eventId: string; ok: boolean }) {
   if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
-  const updated = await deps.pool.query(
-    "UPDATE outbox SET status = $2 WHERE event_id = $1 RETURNING event_id",
-    [input.eventId, input.ok ? "audited" : "audit_failed"],
+  const current = await deps.pool.query<{ status: string; topic: string }>(
+    "SELECT status, topic FROM outbox WHERE event_id = $1",
+    [input.eventId],
   );
-  if (!updated.rowCount) return fail(404, "event_not_found");
-  return { ok: true as const, paymentDecisionChanged: false };
+  const row = current.rows[0];
+  if (!row) return fail(404, "event_not_found");
+  if (row.topic === "request.received" && input.ok) return fail(409, "use_request_send_ack");
+  if (row.status === "audited" || row.status === "mail_accepted" || row.status === "mail_uncertain") {
+    return { ok: true as const, duplicate: true, status: row.status, paymentDecisionChanged: false as const };
+  }
+  if (input.ok) {
+    const updated = await deps.pool.query(
+      "UPDATE outbox SET status = 'audited', lease_until = NULL WHERE event_id = $1 AND status IN ('pending','leased') RETURNING event_id",
+      [input.eventId],
+    );
+    if (!updated.rowCount) return fail(409, "event_not_claimable");
+    return { ok: true as const, duplicate: false, status: "audited" as const, paymentDecisionChanged: false as const };
+  }
+  await deps.pool.query(
+    "UPDATE outbox SET status = 'pending', lease_until = NULL WHERE event_id = $1 AND status IN ('pending','leased')",
+    [input.eventId],
+  );
+  return { ok: true as const, duplicate: false, status: "pending" as const, retry: true, paymentDecisionChanged: false as const };
 }
 
 export async function reportDelivery(deps: Deps, input: {
@@ -440,6 +497,10 @@ export async function reportDelivery(deps: Deps, input: {
 }) {
   if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
   if (!deps.config.fulfillmentLive) return fail(403, "fulfillment_disabled");
+  if (input.outcome !== "accepted" && input.outcome !== "uncertain" && input.outcome !== "failed") return fail(400, "invalid_delivery");
+  if ((input.outcome === "accepted" || input.outcome === "uncertain") && !input.providerMessageId) {
+    return fail(400, "missing_provider_message_id");
+  }
   const prior = await deps.pool.query<{ payload: { status?: string } }>(
     "SELECT payload FROM order_events WHERE idempotency_key = $1",
     [input.idempotencyKey],
@@ -475,10 +536,116 @@ export async function reportDelivery(deps: Deps, input: {
   return { ok: true as const, duplicate: false, status, resent: false };
 }
 
+type OutboxRow = { event_id: string; topic: string; payload: unknown; status: string; created_at: Date; attempt_count: number };
+
+function outboxEvent(row: OutboxRow) {
+  return {
+    eventId: row.event_id,
+    topic: row.topic,
+    status: row.status,
+    createdAt: new Date(row.created_at).toISOString(),
+    attemptCount: row.attempt_count,
+    payload: row.payload,
+  };
+}
+
 export async function listOutbox(deps: Deps) {
   if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
-  const rows = await deps.pool.query("SELECT event_id, topic, payload, status FROM outbox WHERE status = 'pending' ORDER BY created_at ASC");
-  return { ok: true as const, events: rows.rows };
+  const rows = await deps.pool.query<OutboxRow>(
+    `SELECT event_id, topic, payload, status, created_at, attempt_count
+     FROM outbox
+     WHERE (status = 'pending' AND (lease_until IS NULL OR lease_until <= now()))
+        OR (status = 'leased' AND lease_until <= now())
+     ORDER BY created_at ASC
+     LIMIT 20`,
+  );
+  return { ok: true as const, events: rows.rows.map(outboxEvent) };
+}
+
+export async function claimOutbox(deps: Deps, input: { eventId: string; leaseSeconds?: number }) {
+  if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
+  const seconds = Math.min(300, Math.max(30, input.leaseSeconds ?? 120));
+  const claimed = await deps.pool.query<OutboxRow>(
+    `UPDATE outbox
+     SET status = 'leased', lease_until = now() + make_interval(secs => $2::integer), attempt_count = attempt_count + 1
+     WHERE event_id = $1 AND (
+       (status = 'pending' AND (lease_until IS NULL OR lease_until <= now()))
+       OR (status = 'leased' AND lease_until <= now())
+     )
+     RETURNING event_id, topic, payload, status, created_at, attempt_count`,
+    [input.eventId, seconds],
+  );
+  if (claimed.rows[0]) return { ok: true as const, duplicate: false, leaseSeconds: seconds, event: outboxEvent(claimed.rows[0]) };
+  const current = await deps.pool.query<{ status: string }>("SELECT status FROM outbox WHERE event_id = $1", [input.eventId]);
+  if (!current.rowCount) return fail(404, "event_not_found");
+  const status = current.rows[0].status;
+  if (status === "audited" || status === "mail_accepted" || status === "mail_uncertain") {
+    return { ok: true as const, duplicate: true, status };
+  }
+  return fail(409, "lease_held");
+}
+
+export async function readReceiptObject(deps: Deps, input: { orderId: string; objectKey: string }) {
+  if (!deps.config.databaseUrl || !deps.storage) return fail(503, "configuration_unavailable");
+  const found = await deps.pool.query<{ content_type: string; content_sha256: string }>(
+    "SELECT content_type, content_sha256 FROM receipt_submissions WHERE order_id = $1 AND object_key = $2",
+    [input.orderId, input.objectKey],
+  );
+  const row = found.rows[0];
+  if (!row) return fail(404, "object_not_found");
+  const bytes = await deps.storage.getPrivate(input.objectKey, input.orderId);
+  if (!bytes) return fail(404, "object_not_found");
+  return { ok: true as const, contentType: row.content_type, sha256: row.content_sha256, bytesBase64: bytes.toString("base64") };
+}
+
+export async function reportRequestSend(deps: Deps, input: {
+  eventId: string;
+  idempotencyKey: string;
+  outcome: "accepted" | "uncertain" | "failed";
+  providerMessageId?: string;
+}) {
+  if (!deps.config.databaseUrl) return fail(503, "configuration_unavailable");
+  const event = await deps.pool.query<{ topic: string; status: string; payload: { requestId?: string } }>(
+    "SELECT topic, status, payload FROM outbox WHERE event_id = $1",
+    [input.eventId],
+  );
+  if (event.rows[0]?.topic !== "request.received") return fail(404, "request_event_not_found");
+  if (event.rows[0].status === "mail_accepted") {
+    return { ok: true as const, duplicate: true, mailState: "accepted" as const, resent: false, emailSentByBackend: false };
+  }
+  if (input.outcome !== "accepted" && input.outcome !== "uncertain" && input.outcome !== "failed") return fail(400, "invalid_request_send");
+  if ((input.outcome === "accepted" || input.outcome === "uncertain") && !input.providerMessageId) {
+    return fail(400, "missing_provider_message_id");
+  }
+  const prior = await deps.pool.query<{ payload: { mailState?: string; providerMessageId?: string } }>(
+    "SELECT payload FROM order_events WHERE idempotency_key = $1",
+    [input.idempotencyKey],
+  );
+  if (prior.rows[0]?.payload.mailState) {
+    return { ok: true as const, duplicate: true, mailState: prior.rows[0].payload.mailState, resent: false, emailSentByBackend: false };
+  }
+  const uncertain = await deps.pool.query<{ payload: { providerMessageId?: string } }>(
+    "SELECT payload FROM order_events WHERE event_type = 'request.mail' AND payload->>'eventId' = $1 AND payload->>'mailState' = 'uncertain'",
+    [input.eventId],
+  );
+  if (uncertain.rows[0]) {
+    if (input.outcome === "accepted" && input.providerMessageId && input.providerMessageId === uncertain.rows[0].payload.providerMessageId) {
+      await deps.pool.query("UPDATE outbox SET status = 'mail_accepted', lease_until = NULL WHERE event_id = $1", [input.eventId]);
+      return { ok: true as const, duplicate: false, mailState: "accepted" as const, reconciled: true, resent: false, emailSentByBackend: false };
+    }
+    return fail(409, "reconcile_required");
+  }
+  const mailState = input.outcome === "accepted" ? "accepted" : input.outcome === "uncertain" ? "uncertain" : "failed";
+  await deps.pool.query(
+    `INSERT INTO order_events (id, order_id, event_type, idempotency_key, payload, created_at)
+     VALUES ($1,NULL,'request.mail',$2,$3::jsonb,now())
+     ON CONFLICT (idempotency_key) DO NOTHING`,
+    [randomUUID(), input.idempotencyKey, JSON.stringify({ eventId: input.eventId, requestId: event.rows[0].payload.requestId, mailState, providerMessageId: input.providerMessageId ?? null, resent: false })],
+  );
+  if (mailState === "accepted") await deps.pool.query("UPDATE outbox SET status = 'mail_accepted', lease_until = NULL WHERE event_id = $1", [input.eventId]);
+  if (mailState === "uncertain") await deps.pool.query("UPDATE outbox SET status = 'mail_uncertain', lease_until = NULL WHERE event_id = $1", [input.eventId]);
+  if (mailState === "failed") await deps.pool.query("UPDATE outbox SET status = 'pending', lease_until = NULL WHERE event_id = $1 AND status IN ('pending','leased')", [input.eventId]);
+  return { ok: true as const, duplicate: false, mailState, resent: false, emailSentByBackend: false };
 }
 
 export async function redeemDownload(deps: Deps, input: { token: string; sku: string }) {

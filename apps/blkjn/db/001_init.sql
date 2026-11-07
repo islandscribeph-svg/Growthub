@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS outbox (
   topic text NOT NULL,
   payload jsonb NOT NULL,
   status text NOT NULL,
+  lease_until timestamptz,
+  attempt_count integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL
 );
 
@@ -94,3 +96,6 @@ CREATE TABLE IF NOT EXISTS download_grants (
   remaining_count integer NOT NULL CHECK (remaining_count >= 0),
   created_at timestamptz NOT NULL
 );
+
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS lease_until timestamptz;
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS attempt_count integer NOT NULL DEFAULT 0;

@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start --port 3210",
     "typecheck": "tsc --noEmit",
-    "test:checkout": "node --experimental-strip-types --test src/checkout/*.test.ts",
+    "test:checkout": "node --experimental-strip-types --test --test-concurrency=1 src/checkout/*.test.ts",
     "test:gates": "node scripts/gates.test.mjs"
   },
   "dependencies": {

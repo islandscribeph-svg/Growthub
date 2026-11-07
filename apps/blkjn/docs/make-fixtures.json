@@ -1,0 +1,211 @@
+{
+  "description": "Synthetic Make contract examples. The signing secret is a fixture, not a deployment secret. blkjn.example is not a live host. Replaying the frozen timestamp against a server outside the 5-minute window returns 401 invalid_signature.",
+  "fixtureSecret": "test-signing-secret",
+  "replayWindowMs": 300000,
+  "headers": {
+    "timestamp": "X-BLKJN-Timestamp",
+    "signature": "X-BLKJN-Signature"
+  },
+  "canonicalization": "Lowercase hex HMAC-SHA256 over the UTF-8 bytes of timestamp + '.' + the exact HTTP body. GET uses an empty body. Do not parse and re-serialize JSON before signing.",
+  "vectors": [
+    {
+      "name": "getOutbox",
+      "method": "GET",
+      "path": "/api/blkjn/make/outbox/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "",
+      "signature": "c07058fbbbffc1166934dbb7947b92a73f8c2622a06aba4266ac4b480d56a4e3",
+      "curl": "curl --silent --show-error --request GET --url 'https://blkjn.example/api/blkjn/make/outbox/' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: c07058fbbbffc1166934dbb7947b92a73f8c2622a06aba4266ac4b480d56a4e3'"
+    },
+    {
+      "name": "postClaim",
+      "method": "POST",
+      "path": "/api/blkjn/make/outbox/claim/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"leaseSeconds\":120}",
+      "signature": "1a1a76203300bb0fe8c7a75df5bc37ad315239ef0d7b643080aa933583c06e53",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/outbox/claim/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 1a1a76203300bb0fe8c7a75df5bc37ad315239ef0d7b643080aa933583c06e53' --data '{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"leaseSeconds\":120}'"
+    },
+    {
+      "name": "postReceiptObject",
+      "method": "POST",
+      "path": "/api/blkjn/make/receipt-objects/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"orderId\":\"00000000-0000-4000-8000-000000000001\",\"objectKey\":\"receipts/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002\"}",
+      "signature": "8c896c0e318abd291bb39b9d8222c98ce16069442f1440b0c2373153d0ab0205",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/receipt-objects/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 8c896c0e318abd291bb39b9d8222c98ce16069442f1440b0c2373153d0ab0205' --data '{\"orderId\":\"00000000-0000-4000-8000-000000000001\",\"objectKey\":\"receipts/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002\"}'"
+    },
+    {
+      "name": "postExtraction",
+      "method": "POST",
+      "path": "/api/blkjn/make/extractions/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"orderId\":\"00000000-0000-4000-8000-000000000001\",\"idempotencyKey\":\"extract-1\",\"extraction\":{\"schema_version\":\"1\",\"provider\":\"gcash\",\"currency\":\"PHP\",\"amount_centavos\":9900,\"reference_raw\":\"001234\",\"recipient_name\":\"TEST RECIPIENT\",\"recipient_identifier\":\"TEST-GCASH-0000\",\"payment_timestamp_raw\":\"2026-11-07T23:50:00+08:00\",\"parsed_payment_timestamp\":\"2026-11-07T23:50:00+08:00\",\"timestamp_timezone\":\"Asia/Manila\",\"transaction_status\":\"completed\",\"field_confidence\":{\"amount_centavos\":0.99,\"reference_raw\":0.99,\"recipient_name\":0.99,\"recipient_identifier\":0.99,\"parsed_payment_timestamp\":0.99,\"transaction_status\":0.99},\"missing_fields\":[]}}",
+      "signature": "afd29c76b45e270f0d9c09ed6ef1607a0a81ca30c9ccfb25911577d9d59d6973",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/extractions/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: afd29c76b45e270f0d9c09ed6ef1607a0a81ca30c9ccfb25911577d9d59d6973' --data '{\"orderId\":\"00000000-0000-4000-8000-000000000001\",\"idempotencyKey\":\"extract-1\",\"extraction\":{\"schema_version\":\"1\",\"provider\":\"gcash\",\"currency\":\"PHP\",\"amount_centavos\":9900,\"reference_raw\":\"001234\",\"recipient_name\":\"TEST RECIPIENT\",\"recipient_identifier\":\"TEST-GCASH-0000\",\"payment_timestamp_raw\":\"2026-11-07T23:50:00+08:00\",\"parsed_payment_timestamp\":\"2026-11-07T23:50:00+08:00\",\"timestamp_timezone\":\"Asia/Manila\",\"transaction_status\":\"completed\",\"field_confidence\":{\"amount_centavos\":0.99,\"reference_raw\":0.99,\"recipient_name\":0.99,\"recipient_identifier\":0.99,\"parsed_payment_timestamp\":0.99,\"transaction_status\":0.99},\"missing_fields\":[]}}'"
+    },
+    {
+      "name": "postAudit",
+      "method": "POST",
+      "path": "/api/blkjn/make/audit/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"ok\":true}",
+      "signature": "4ee2df08594fd2883b224a5b0d020566b5380bc8ac9c750af81881e40fa8be13",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/audit/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 4ee2df08594fd2883b224a5b0d020566b5380bc8ac9c750af81881e40fa8be13' --data '{\"eventId\":\"receipt.submitted:00000000-0000-4000-8000-000000000001:up-1\",\"ok\":true}'"
+    },
+    {
+      "name": "postRequestSend",
+      "method": "POST",
+      "path": "/api/blkjn/make/request-sends/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"eventId\":\"request.received:00000000-0000-4000-8000-000000000003\",\"idempotencyKey\":\"request-mail-1\",\"outcome\":\"uncertain\",\"providerMessageId\":\"synthetic-message-1\"}",
+      "signature": "973b77eac5f6acc0f9ff7c6631ca84060f26a0031a69b2bdf218bf6787f7ee4d",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/request-sends/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 973b77eac5f6acc0f9ff7c6631ca84060f26a0031a69b2bdf218bf6787f7ee4d' --data '{\"eventId\":\"request.received:00000000-0000-4000-8000-000000000003\",\"idempotencyKey\":\"request-mail-1\",\"outcome\":\"uncertain\",\"providerMessageId\":\"synthetic-message-1\"}'"
+    },
+    {
+      "name": "postDelivery",
+      "method": "POST",
+      "path": "/api/blkjn/make/deliveries/",
+      "timestamp": "2026-11-08T00:00:00.000Z",
+      "rawBody": "{\"orderId\":\"00000000-0000-4000-8000-000000000001\",\"idempotencyKey\":\"delivery-1\",\"outcome\":\"uncertain\",\"providerMessageId\":\"synthetic-message-1\"}",
+      "signature": "55f3369648664e57b517a0f191ca070313268b1c4daa7fc68c793fdc92ca1fd7",
+      "curl": "curl --silent --show-error --request POST --url 'https://blkjn.example/api/blkjn/make/deliveries/' --header 'content-type: application/json' --header 'X-BLKJN-Timestamp: 2026-11-08T00:00:00.000Z' --header 'X-BLKJN-Signature: 55f3369648664e57b517a0f191ca070313268b1c4daa7fc68c793fdc92ca1fd7' --data '{\"orderId\":\"00000000-0000-4000-8000-000000000001\",\"idempotencyKey\":\"delivery-1\",\"outcome\":\"uncertain\",\"providerMessageId\":\"synthetic-message-1\"}'"
+    }
+  ],
+  "examples": {
+    "outboxList": {
+      "ok": true,
+      "events": [
+        {
+          "eventId": "receipt.submitted:00000000-0000-4000-8000-000000000001:up-1",
+          "topic": "receipt.submitted",
+          "status": "pending",
+          "createdAt": "2026-11-07T15:55:00.000Z",
+          "attemptCount": 0,
+          "payload": {
+            "orderId": "00000000-0000-4000-8000-000000000001",
+            "publicRef": "BLKJN-SYNTHETIC01",
+            "receiptId": "00000000-0000-4000-8000-000000000004",
+            "idempotencyKey": "up-1",
+            "objectKey": "receipts/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002",
+            "contentSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "contentType": "image/png",
+            "submittedAt": "2026-11-07T15:55:00.000Z",
+            "orderCreatedAt": "2026-11-07T15:40:00.000Z",
+            "currency": "PHP",
+            "totalCentavos": 9900,
+            "paymentMethod": "gcash",
+            "lines": [
+              {
+                "sku": "BLKJN-P01",
+                "title": "Synthetic workbook",
+                "quantity": 1,
+                "unitCentavos": 9900,
+                "lineCentavos": 9900
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "duplicateRejected": {
+      "orderId": "00000000-0000-4000-8000-000000000001",
+      "orderRef": "BLKJN-SYNTHETIC01",
+      "subject": "We need another payment receipt for order BLKJN-SYNTHETIC01",
+      "body": "Thanks for your order. We couldn't approve this receipt because its payment reference is already linked to another order. No download has been sent for this order. If you resubmitted an existing order or believe this is a mistake, please reply with your order number so we can help. Please don't make another payment until we've checked."
+    },
+    "requestReceived": {
+      "requestId": "00000000-0000-4000-8000-000000000003",
+      "name": "Synthetic Buyer",
+      "email": "buyer@example.com",
+      "message": "A synthetic request",
+      "replyTo": "buyer@example.com"
+    },
+    "fulfillmentHeld": {
+      "orderId": "00000000-0000-4000-8000-000000000001",
+      "orderRef": "BLKJN-SYNTHETIC01",
+      "reason": "fulfillment_disabled"
+    },
+    "fulfillmentRequested": {
+      "orderId": "00000000-0000-4000-8000-000000000001",
+      "orderRef": "BLKJN-SYNTHETIC01",
+      "buyerEmail": "buyer@example.com",
+      "grants": [
+        {
+          "sku": "BLKJN-P01",
+          "token": "synthetic-download-token",
+          "downloadPath": "/api/blkjn/downloads/synthetic-download-token?sku=BLKJN-P01",
+          "expiresAt": "2026-11-08T00:40:00.000Z",
+          "remainingCount": 2
+        }
+      ]
+    },
+    "claimResponse": {
+      "ok": true,
+      "duplicate": false,
+      "leaseSeconds": 120,
+      "event": {
+        "eventId": "receipt.submitted:00000000-0000-4000-8000-000000000001:up-1",
+        "topic": "receipt.submitted",
+        "status": "leased",
+        "createdAt": "2026-11-07T15:55:00.000Z",
+        "attemptCount": 1,
+        "payload": {
+          "orderId": "00000000-0000-4000-8000-000000000001",
+          "publicRef": "BLKJN-SYNTHETIC01",
+          "receiptId": "00000000-0000-4000-8000-000000000004",
+          "idempotencyKey": "up-1",
+          "objectKey": "receipts/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002",
+          "contentSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "contentType": "image/png",
+          "submittedAt": "2026-11-07T15:55:00.000Z",
+          "orderCreatedAt": "2026-11-07T15:40:00.000Z",
+          "currency": "PHP",
+          "totalCentavos": 9900,
+          "paymentMethod": "gcash",
+          "lines": [
+            {
+              "sku": "BLKJN-P01",
+              "title": "Synthetic workbook",
+              "quantity": 1,
+              "unitCentavos": 9900,
+              "lineCentavos": 9900
+            }
+          ]
+        }
+      }
+    },
+    "auditAck": {
+      "ok": true,
+      "duplicate": false,
+      "status": "audited",
+      "paymentDecisionChanged": false
+    },
+    "auditRetry": {
+      "ok": true,
+      "duplicate": false,
+      "status": "pending",
+      "retry": true,
+      "paymentDecisionChanged": false
+    },
+    "requestSendAck": {
+      "ok": true,
+      "duplicate": false,
+      "mailState": "uncertain",
+      "resent": false,
+      "emailSentByBackend": false
+    },
+    "deliveryReport": {
+      "ok": true,
+      "duplicate": false,
+      "status": "DELIVERY_UNCERTAIN",
+      "resent": false
+    },
+    "receiptObject": {
+      "ok": true,
+      "contentType": "image/png",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "bytesBase64": "iVBORw0KGgoA"
+    }
+  }
+}
