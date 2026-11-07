@@ -1,4 +1,5 @@
 import type { Product } from "@/data/catalogue";
+import { CartActions } from "@/components/cart-actions";
 
 export function ProductCard({ product }: { product: Product }) {
   return (
@@ -24,12 +25,7 @@ export function ProductCard({ product }: { product: Product }) {
       <p className="product-status">Proposed — not final</p>
       <p className="product-price">{`PHP ${product.pricePhp}`}</p>
       <p className="product-editions">Includes the blank and example editions.</p>
-      <button type="button" disabled data-action="purchase">
-        Purchase disabled
-      </button>
-      <button type="button" disabled data-action="download">
-        Download disabled
-      </button>
+      <CartActions sku={product.productId} />
     </article>
   );
 }

@@ -65,10 +65,23 @@ function buttons(html, action) {
   );
 }
 
-const home = visibleMarkup(readOut("index.html"));
-const store = visibleMarkup(readOut("store/index.html"));
-const about = visibleMarkup(readOut("about/index.html"));
-const request = visibleMarkup(readOut("request/index.html"));
+const pageBase = process.env.BLKJN_GATES_URL ?? "http://127.0.0.1:3320";
+
+function routeFor(relativePath) {
+  if (relativePath === "index.html") return "/";
+  return `/${relativePath.replace(/index\.html$/, "")}`;
+}
+
+async function loadPage(relativePath) {
+  const response = await fetch(new URL(routeFor(relativePath), pageBase));
+  if (!response.ok) throw new Error(`Unable to read ${relativePath}: ${response.status}`);
+  return await response.text();
+}
+
+const home = visibleMarkup(await loadPage("index.html"));
+const store = visibleMarkup(await loadPage("store/index.html"));
+const about = visibleMarkup(await loadPage("about/index.html"));
+const request = visibleMarkup(await loadPage("request/index.html"));
 const pages = { home, store, about, request };
 
 for (const [name, html] of Object.entries(pages)) {
@@ -146,15 +159,21 @@ for (const [index, name] of productNames.entries()) {
   assert.match(article, new RegExp(`>PHP ${pricePhp}<`));
   assert.match(article, /Includes the blank and example editions\./);
   assert.equal((article.match(/<img\b/g) ?? []).length, 1);
-  assert.equal((article.match(/data-action="purchase"/g) ?? []).length, 1);
+  assert.equal((article.match(/data-action="add-to-cart"/g) ?? []).length, 1);
+  assert.equal((article.match(/data-action="buy-now"/g) ?? []).length, 1);
 }
 assert.equal((store.match(/loading="lazy"/g) ?? []).length, 12);
 assert.equal((store.match(/loading="eager"/g) ?? []).length, 3);
 
-assert.equal(buttons(store, "purchase").length, 15);
+assert.equal(buttons(store, "add-to-cart").length, 15);
+assert.equal(buttons(store, "buy-now").length, 15);
 assert.equal(buttons(store, "download").length, 15);
-for (const tag of [...buttons(store, "purchase"), ...buttons(store, "download")]) {
+for (const tag of buttons(store, "download")) {
   assert.match(tag, /\bdisabled\b/);
+  assert.match(tag, /type="button"/);
+}
+for (const tag of [...buttons(store, "add-to-cart"), ...buttons(store, "buy-now")]) {
+  assert.doesNotMatch(tag, /\bdisabled\b/);
   assert.match(tag, /type="button"/);
 }
 assert.equal((store.match(/data-price-php="/g) ?? []).length, 15);
@@ -223,7 +242,8 @@ const sourceFiles = walk(new URL("../src", import.meta.url).pathname).filter((fi
 );
 for (const file of sourceFiles) {
   const source = readFileSync(file, "utf8");
-  assert.doesNotMatch(source, /fetch\(|mailto:|paypal\.com|sk_live|api\.stripe/i, file);
+  assert.doesNotMatch(source, /mailto:|paypal\.com|sk_live|api\.stripe/i, file);
+  assert.doesNotMatch(source, /fetch\(\s*["']https?:/i, file);
 }
 
 console.log("BLKJN gates passed: 15 products, approved PHP prices, purchase/download/request disabled.");

@@ -15,7 +15,7 @@ npm run test:gates
 npm run dev
 ```
 
-`npm run dev` serves http://localhost:3210. `npm run build` writes a static export to `out/`. The root Growthub command `npm run build` does not build this app, and this app does not run Growthub's Prisma migration.
+`npm run dev` serves http://localhost:3210. `npm run build` builds the Next.js app, including the checkout route handlers. It is not a static export, because orders need a server. The root Growthub command `npm run build` does not build this app.
 
 Do not add this app to a root npm workspace. That would change how the Growthub app installs.
 
