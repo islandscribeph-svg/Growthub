@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { PageShell } from "@/components/page-shell";
 import { readBuyNow, useCart } from "@/components/cart-provider";
 import { products } from "@/data/catalogue";
+import { messengerPurchaseUrl } from "@/data/messenger";
 
 type Capabilities = {
   checkout: "unavailable" | "test" | "live" | "disabled";
@@ -145,6 +146,24 @@ export default function CheckoutPage() {
           </ul>
         )}
         <p className="product-price">Total PHP {displayCentavos / 100}</p>
+        {!purchaseReady ? (
+          <p className="section-lede">
+            Website checkout is not available yet. You can continue in Messenger.
+            Nothing is downloaded from this page.
+          </p>
+        ) : null}
+        {!purchaseReady ? (
+          <a
+            className="button"
+            data-action="purchase-messenger"
+            href={messengerPurchaseUrl(lines)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {lines.length === 0 ? "Message BLKJN" : "Purchase via Messenger"}
+          </a>
+        ) : null}
+        {purchaseReady ? (
         <form className="request-card" onSubmit={submit}>
           <fieldset disabled={!purchaseReady}>
             <label htmlFor="buyer-email">Buyer email</label>
@@ -166,6 +185,7 @@ export default function CheckoutPage() {
             </button>
           </fieldset>
         </form>
+        ) : null}
         {!purchaseReady ? (
           <p className="checkout-error" role="status">
             Purchases are not available yet. Nothing will be saved.

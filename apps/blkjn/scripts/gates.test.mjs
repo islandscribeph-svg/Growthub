@@ -161,19 +161,23 @@ for (const [index, name] of productNames.entries()) {
   assert.match(article, /Includes the blank and example editions\./);
   assert.equal((article.match(/<img\b/g) ?? []).length, 1);
   assert.equal((article.match(/data-action="add-to-cart"/g) ?? []).length, 1);
-  assert.equal((article.match(/data-action="buy-now"/g) ?? []).length, 1);
+  assert.match(article, new RegExp(`href="https://m\\.me/553723741160341\\?ref=${id}-1"`));
+  assert.match(article, /target="_blank"/);
+  assert.match(article, /rel="noopener noreferrer"/);
 }
 assert.equal((store.match(/loading="lazy"/g) ?? []).length, 12);
 assert.equal((store.match(/loading="eager"/g) ?? []).length, 3);
 
 assert.equal(buttons(store, "add-to-cart").length, 15);
-assert.equal(buttons(store, "buy-now").length, 15);
+assert.equal((store.match(/data-action="purchase-messenger"/g) ?? []).length, 15);
+assert.equal((store.match(/data-action="buy-now"/g) ?? []).length, 0);
+assert.doesNotMatch(store, /61573128997098|facebook\.com\/messages|[?&]text=/);
 assert.equal(buttons(store, "download").length, 15);
 for (const tag of buttons(store, "download")) {
   assert.match(tag, /\bdisabled\b/);
   assert.match(tag, /type="button"/);
 }
-for (const tag of [...buttons(store, "add-to-cart"), ...buttons(store, "buy-now")]) {
+for (const tag of buttons(store, "add-to-cart")) {
   assert.doesNotMatch(tag, /\bdisabled\b/);
   assert.match(tag, /type="button"/);
 }

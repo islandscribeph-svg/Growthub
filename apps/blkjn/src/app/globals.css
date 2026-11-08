@@ -521,12 +521,20 @@ h3 {
   gap: 8px;
 }
 
-.cart-actions button {
+.cart-actions button,
+.cart-actions a[data-action="purchase-messenger"] {
   width: 100%;
   min-height: 36px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
+}
+
+.cart-actions a[data-action="purchase-messenger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .cart-actions button[data-action="add-to-cart"] {
@@ -535,7 +543,7 @@ h3 {
   color: var(--teal);
 }
 
-.cart-actions button[data-action="buy-now"] {
+.cart-actions a[data-action="purchase-messenger"] {
   border: 0;
   background: var(--teal);
   color: var(--surface);
