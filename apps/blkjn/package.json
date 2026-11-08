@@ -1,0 +1,28 @@
+{
+  "name": "blkjn",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BLKJN draft site. Separately buildable from the Growthub app at the repository root. Not deployed.",
+  "scripts": {
+    "dev": "next dev --port 3210",
+    "build": "next build",
+    "start": "next start --port 3210",
+    "typecheck": "tsc --noEmit",
+    "test:checkout": "node --experimental-strip-types --test --test-concurrency=1 src/checkout/*.test.ts",
+    "test:gates": "node scripts/gates.test.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1164.0",
+    "next": "16.3.0",
+    "pg": "^8.23.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}

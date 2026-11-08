@@ -54,3 +54,9 @@ curl https://<your-deploy>.vercel.app/api/setup/status -H "x-setup-key: $SESSION
 ```
 
 Local dev can still use `npm run db:seed` directly against a local or dev database if you prefer — `/api/setup/*` exists specifically so a fresh Vercel+Supabase deploy can be bootstrapped without shell access to the production database.
+
+## Other apps in this repository
+
+`apps/blkjn` is a separate static draft site for BLKJN (Bahala Ka Jan). It has its own `package.json` and is not part of the Growthub install, database, or build. From the repository root, `npm install` and `npm run build` still apply only to Growthub. The root TypeScript and ESLint configs ignore `apps/` so those checks stay limited to this dashboard.
+
+Do not point this Vercel project at `apps/blkjn`, and do not add a root npm workspace. BLKJN build and deployment notes live in `apps/blkjn/README.md`. The BLKJN draft is not deployed.

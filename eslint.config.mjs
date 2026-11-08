@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // apps/blkjn has its own build and is not part of the Growthub lint.
+    "apps/**",
   ]),
 ]);
 

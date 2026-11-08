@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Independent BLKJN app. Root Growthub ignores above are unchanged.
+apps/blkjn/node_modules/
+apps/blkjn/.next/
+apps/blkjn/out/
