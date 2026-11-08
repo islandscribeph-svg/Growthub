@@ -4,22 +4,41 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const pools = new Map<string, pg.Pool>();
+const sqlDirectory = join(dirname(fileURLToPath(import.meta.url)), "../../db");
+
+export function databasePoolOptions(databaseUrl: string): pg.PoolConfig {
+  const params = new URLSearchParams(databaseUrl.split("?")[1] ?? "");
+  const sslmode = params.get("sslmode");
+  const libpqCompat = params.get("uselibpqcompat") === "true";
+  const disablesVerification = sslmode === "no-verify"
+    || (libpqCompat && (sslmode === "require" || sslmode === "prefer") && !params.get("sslrootcert"));
+  if (disablesVerification) {
+    throw new Error("BLKJN_DATABASE_URL disables TLS certificate verification");
+  }
+  return {
+    connectionString: databaseUrl,
+    max: connectionPort(databaseUrl) === 6543 ? 1 : 8,
+  };
+}
+
+function connectionPort(databaseUrl: string): number | null {
+  const hostAndPath = databaseUrl.slice(databaseUrl.lastIndexOf("@") + 1);
+  const match = hostAndPath.match(/:(\d+)(?:\/|$)/);
+  return match ? Number(match[1]) : null;
+}
 
 export function getPool(databaseUrl: string): pg.Pool {
   const existing = pools.get(databaseUrl);
   if (existing) return existing;
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 8 });
+  const pool = new pg.Pool(databasePoolOptions(databaseUrl));
   pools.set(databaseUrl, pool);
   return pool;
 }
 
 export async function migrate(pool: pg.Pool): Promise<void> {
-  const sqlPath = join(dirname(fileURLToPath(import.meta.url)), "../../db/001_init.sql");
-  const sql = readFileSync(sqlPath, "utf8");
-  await pool.query(sql);
-  await pool.query(
-    "INSERT INTO schema_migrations (id) VALUES ('001_init') ON CONFLICT (id) DO NOTHING",
-  );
+  for (const fileName of ["001_init.sql", "002_supabase_hardening.sql"]) {
+    await pool.query(readFileSync(join(sqlDirectory, fileName), "utf8"));
+  }
 }
 
 export async function resetDatabase(pool: pg.Pool): Promise<void> {

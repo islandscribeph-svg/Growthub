@@ -222,7 +222,7 @@ Call the app with a trailing slash. `next.config` sets `trailingSlash: true`.
 
 | Name | Required for | Notes |
 |---|---|---|
-| `BLKJN_DATABASE_URL` | Orders and events | BLKJN Postgres. Not the Growthub database. |
+| `BLKJN_DATABASE_URL` | Orders and events | BLKJN Postgres only. For the Supabase project, use the transaction-pooler URL with `sslmode=verify-full`. See `docs/SUPABASE-SETUP.md`. Not the Growthub database, and not a `service_role` key. |
 | `BLKJN_MODE` | Test orders | `test` allows orders without purchase live. Anything else is `live`. |
 | `BLKJN_PURCHASE_LIVE` | Live orders | Default false. |
 | `BLKJN_REQUEST_INTAKE_LIVE` | Public request form | Default false. |

@@ -116,3 +116,5 @@ CREATE TABLE IF NOT EXISTS send_reservations (
   updated_at timestamptz NOT NULL,
   UNIQUE (event_id, action)
 );
+
+INSERT INTO schema_migrations (id) VALUES ('001_init') ON CONFLICT (id) DO NOTHING;
