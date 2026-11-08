@@ -56,14 +56,14 @@ export default function CheckoutPage() {
     const product = bySku.get(line.sku as `BLKJN-P${string}`);
     return sum + (product ? product.pricePhp * 100 * line.quantity : 0);
   }, 0);
-  const checkoutOpen = capabilities?.checkout === "test" || capabilities?.checkout === "live";
+  const purchaseReady = capabilities?.checkout === "live" && capabilities.purchaseLive;
   const qrReady = method === "gcash" ? capabilities?.qr.gcash : capabilities?.qr.gotyme;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setResult({ kind: "idle" });
-    if (!checkoutOpen) {
-      setResult({ kind: "error", message: "Checkout is unavailable until BLKJN database configuration is set. Nothing was saved." });
+    if (!purchaseReady) {
+      setResult({ kind: "error", message: "Purchases are not available yet. Nothing was saved." });
       return;
     }
     if (!file) {
@@ -100,7 +100,7 @@ export default function CheckoutPage() {
         return;
       }
       if (receiptBody.bankSettlementVerified) {
-        setResult({ kind: "error", message: "Unexpected settlement flag. No confirmation was shown." });
+        setResult({ kind: "error", message: "This receipt was not confirmed. Nothing was marked as paid." });
         return;
       }
       setResult({ kind: "pending", headline: receiptBody.headline, detail: receiptBody.detail ?? "" });
@@ -114,13 +114,13 @@ export default function CheckoutPage() {
   return (
     <PageShell current="checkout">
       <section className="section frame checkout">
-        <p className="pill">CHECKOUT · {capabilities?.checkout === "test" ? "TEST ONLY" : "NOT LIVE"}</p>
+        <p className="pill">{purchaseReady ? "CHECKOUT" : "PURCHASES UNAVAILABLE"}</p>
         <h1>{mode === "buy-now" ? "Buy now" : "Checkout"}</h1>
         <p className="section-lede">
           {mode === "buy-now"
             ? "This buy-now selection does not replace the saved cart."
             : "The saved cart stays on this browser."}
-          {" "}One PHP price for every buyer. Receipt review is not bank settlement verification.
+          {" "}One PHP price for every buyer. Checking a receipt is not a bank confirmation.
         </p>
         {lines.length === 0 ? <p>There is nothing in this checkout yet.</p> : (
           <ul className="checkout-lines">
@@ -146,27 +146,29 @@ export default function CheckoutPage() {
         )}
         <p className="product-price">Total PHP {displayCentavos / 100}</p>
         <form className="request-card" onSubmit={submit}>
-          <label htmlFor="buyer-email">Buyer email</label>
-          <input id="buyer-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          <fieldset>
-            <legend>Payment method</legend>
-            <label><input type="radio" name="method" checked={method === "gcash"} onChange={() => setMethod("gcash")} /> GCash</label>
-            <label><input type="radio" name="method" checked={method === "gotyme"} onChange={() => setMethod("gotyme")} /> GoTyme</label>
+          <fieldset disabled={!purchaseReady}>
+            <label htmlFor="buyer-email">Buyer email</label>
+            <input id="buyer-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            <fieldset>
+              <legend>Payment method</legend>
+              <label><input type="radio" name="method" checked={method === "gcash"} onChange={() => setMethod("gcash")} /> GCash</label>
+              <label><input type="radio" name="method" checked={method === "gotyme"} onChange={() => setMethod("gotyme")} /> GoTyme</label>
+            </fieldset>
+            <p className="qr-placeholder" data-qr={purchaseReady && qrReady ? "configured" : "unavailable"}>
+              {purchaseReady && qrReady
+                ? `${method === "gcash" ? "GCash" : "GoTyme"} QR`
+                : `${method === "gcash" ? "GCash" : "GoTyme"} QR is not available yet. A printed QR would not set the exact PHP amount.`}
+            </p>
+            <label htmlFor="receipt">Payment receipt</label>
+            <input id="receipt" type="file" accept="image/png,image/jpeg,application/pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+            <button type="submit" data-action="submit-receipt" disabled={busy || lines.length === 0 || !purchaseReady}>
+              {busy ? "Submitting" : purchaseReady ? "Submit receipt" : "Purchases unavailable"}
+            </button>
           </fieldset>
-          <p className="qr-placeholder" data-qr={qrReady ? "configured" : "unavailable"}>
-            {qrReady
-              ? "Owner QR is configured."
-              : `${method === "gcash" ? "GCash" : "GoTyme"} QR unavailable until the owner image is configured. A static QR does not set the exact PHP amount.`}
-          </p>
-          <label htmlFor="receipt">Payment receipt</label>
-          <input id="receipt" type="file" accept="image/png,image/jpeg,application/pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-          <button type="submit" data-action="submit-receipt" disabled={busy || lines.length === 0}>
-            {busy ? "Submitting" : "Submit receipt"}
-          </button>
         </form>
-        {capabilities && capabilities.checkout !== "test" && capabilities.checkout !== "live" ? (
+        {!purchaseReady ? (
           <p className="checkout-error" role="status">
-            Checkout is unavailable. Missing: {capabilities.gaps.join(", ") || "purchase switch"}. Nothing will be saved.
+            Purchases are not available yet. Nothing will be saved.
           </p>
         ) : null}
         {result.kind === "error" ? <p className="checkout-error" role="status">{result.message}</p> : null}

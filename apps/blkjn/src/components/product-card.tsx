@@ -22,7 +22,7 @@ export function ProductCard({ product }: { product: Product }) {
         <figcaption>Example sheet · sample data</figcaption>
       </figure>
       <h3>{product.name}</h3>
-      <p className="product-status">Proposed — not final</p>
+      <p className="product-status">Not available to download</p>
       <p className="product-price">{`PHP ${product.pricePhp}`}</p>
       <p className="product-editions">Includes the blank and example editions.</p>
       <CartActions sku={product.productId} />

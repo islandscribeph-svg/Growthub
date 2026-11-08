@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     template: "%s · BLKJN",
   },
   description:
-    "Draft for review. Simple spreadsheet templates for virtual assistants and small teams. Checkout, downloads, and requests are not live.",
+    "Simple spreadsheet templates for virtual assistants and small teams. Purchases, downloads, and template requests are not available yet.",
   robots: { index: false, follow: false },
 };
 

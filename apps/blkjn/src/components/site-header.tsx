@@ -28,9 +28,9 @@ export function SiteHeader({ current }: { current: PageId }) {
             </Link>
           ))}
         </nav>
-        <p className="draft-badge">
-          <span className="draft-full">DRAFT FOR REVIEW · NOT LIVE</span>
-          <span className="draft-short">DRAFT</span>
+        <p className="availability-note">
+          <span className="availability-full">PURCHASES UNAVAILABLE</span>
+          <span className="availability-short">UNAVAILABLE</span>
         </p>
       </div>
     </header>

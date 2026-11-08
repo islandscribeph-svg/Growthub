@@ -24,7 +24,7 @@ const scenario = [
     step: "3",
     kicker: "ACTION",
     text: "Append a row to a spreadsheet",
-    note: "Review the mapped output",
+    note: "See the mapped output",
   },
 ] as const;
 
@@ -32,11 +32,11 @@ export default function StorePage() {
   return (
     <PageShell current="store">
       <section className="section frame store-intro">
-        <p className="pill">CATALOGUE · PROPOSED</p>
+        <p className="pill">STORE</p>
         <h1>Spreadsheet templates</h1>
         <p className="section-lede">
-          15 products across five packs. One PHP price for every buyer. Checkout
-          and downloads are disabled.
+          15 products across five packs. One PHP price for every buyer.
+          Purchases and downloads are not available yet.
         </p>
       </section>
 
@@ -63,12 +63,12 @@ export default function StorePage() {
       >
         <h2 id="guides-heading">Automation Guides</h2>
         <p className="section-lede">
-          Phase 2 · Separate from the 15 spreadsheets · Not priced · No guides
+          Separate from the 15 spreadsheets. Not priced. No guides are
           available yet.
         </p>
-        <p className="scenario-label">ILLUSTRATIVE MAKE.COM-STYLE SCENARIO</p>
+        <p className="scenario-label">Sample scenario</p>
         <div className="guide-panel">
-          <p className="guide-kicker">ILLUSTRATIVE GUIDE PREVIEW</p>
+          <p className="guide-kicker">Sample scenario</p>
           <ol className="scenario">
             {scenario.map((item) => (
               <li key={item.step}>
@@ -84,17 +84,15 @@ export default function StorePage() {
             ))}
           </ol>
           <p className="guide-note">
-            Conceptual only — not tested, functioning, or connected. No live
-            scenario or integrations.
+            This sample is not connected. No guides are available yet.
           </p>
         </div>
         <p className="quiet">
-          Compatibility untested. Compatible .xlsx files can be uploaded to
-          Google Sheets; not all Excel features transfer.
+          A compatible spreadsheet can be uploaded to Google Sheets. Not every
+          Excel feature transfers.
         </p>
         <p className="quiet">
-          All products are proposed — not final. Purchase and download actions
-          are disabled.
+          Purchases and downloads are not available yet.
         </p>
       </section>
     </PageShell>

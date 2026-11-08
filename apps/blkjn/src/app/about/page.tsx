@@ -43,41 +43,40 @@ export default function AboutPage() {
           <article className="format-card format-card-mint">
             <h3>.xlsx spreadsheets</h3>
             <p>
-              Planned .xlsx files can be uploaded to Google Sheets. Compatibility
-              is untested, and not all Excel features transfer.
+              A spreadsheet can be uploaded to Google Sheets. Not every Excel
+              feature transfers.
             </p>
           </article>
           <article className="format-card">
             <h3>Automation learning</h3>
             <p>
-              Practical PDF learning guides are planned separately. No guides or
-              downloads are live.
+              Practical PDF learning guides are planned separately. Guides and
+              downloads are not available yet.
             </p>
           </article>
         </div>
       </section>
 
       <section className="section frame" aria-labelledby="access-heading">
-        <h2 id="access-heading">Future access, not a live checkout</h2>
+        <h2 id="access-heading">Purchases are not available yet</h2>
         <p className="quiet">
-          Products, checkout and downloads are not live. Private downloads would
-          require server authorization.
+          Purchases and downloads are not available yet.
         </p>
         <p className="quiet">
-          Currency: PHP only. The same approved price applies to every buyer and
-          is shown on the Store. Checkout and downloads are not live.
+          Currency: PHP only. The same price applies to every buyer and is
+          shown on the Store. Purchases and downloads are not available yet.
         </p>
         <article className="safeguard-card">
           <h3>Planned payment safeguards</h3>
           <div className="safeguard-grid">
             <div>
               <h4>QR / manual</h4>
-              <p>Planned, unconfigured and untested.</p>
+              <p>Not available yet.</p>
               <p>Owner confirmation that funds arrived would be required.</p>
             </div>
             <div>
               <h4>PayPal</h4>
-              <p>Planned, unconfigured and untested.</p>
+              <p>Not available yet.</p>
               <p>A server-verified COMPLETED capture would be required.</p>
             </div>
           </div>
@@ -86,8 +85,8 @@ export default function AboutPage() {
           </p>
         </article>
         <p className="quiet fine-print">
-          Prices are displayed only. No live payment setup, checkout, or file
-          delivery.
+          Prices are shown for reference. Purchases and file delivery are not
+          available yet.
         </p>
       </section>
     </PageShell>

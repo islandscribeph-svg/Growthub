@@ -27,7 +27,7 @@ export default function HomePage() {
           <img
             className="hero-desktop"
             src="/images/hero-desktop.png"
-            alt="Sunlit wooden desk with a desktop monitor, keyboard, and plants. The screen is an illustrative spreadsheet preview, proposed and not final."
+            alt="Sunlit wooden desk with a desktop monitor, keyboard, and plants. The screen shows a sample spreadsheet."
             width={1536}
             height={1024}
           />
@@ -39,7 +39,7 @@ export default function HomePage() {
             <img
               className="hero-mobile"
               src="/images/hero-mobile.png"
-              alt="Sunlit desk with a full desktop monitor. The screen is an illustrative spreadsheet preview, proposed and not final."
+              alt="Sunlit desk with a full desktop monitor. The screen shows a sample spreadsheet."
               width={390}
               height={680}
             />
@@ -48,7 +48,7 @@ export default function HomePage() {
             </div>
           </div>
           <p className="hero-caption">
-            Illustrative spreadsheet preview · proposed, not final.
+            Sample spreadsheet on the desk.
           </p>
         </div>
       </section>
@@ -56,14 +56,14 @@ export default function HomePage() {
       <section className="section frame" aria-labelledby="purpose-heading">
         <h2 id="purpose-heading">Made for the everyday work behind a business.</h2>
         <p className="measure">
-          BLKJN means Bahala Ka Jan. The concept brings simple admin templates
-          and practical automation learning into one approachable place for
-          virtual assistants and small teams.
+          BLKJN means Bahala Ka Jan. Simple admin templates and practical
+          automation learning, in one place for virtual assistants and small
+          teams.
         </p>
       </section>
 
       <section className="section frame" aria-labelledby="packs-heading">
-        <h2 id="packs-heading">Five proposed spreadsheet packs</h2>
+        <h2 id="packs-heading">Five spreadsheet packs</h2>
         <p className="section-lede">Organized by task, not by complexity.</p>
         <div className="pack-grid">
           {packs.map((pack) => (
@@ -78,27 +78,27 @@ export default function HomePage() {
           <article className="pack-card pack-card-planned">
             <p className="planned-kicker">PLANNED · AUTOMATION GUIDES</p>
             <p>Separate PDF learning guides, not yet available.</p>
-            <p>No guide content is tested or live.</p>
+            <p>No guides are available yet.</p>
           </article>
         </div>
       </section>
 
       <section className="section frame path" aria-labelledby="path-heading">
-        <h2 id="path-heading">A simple future path to downloads</h2>
+        <h2 id="path-heading">Purchases and downloads</h2>
         <ol className="path-steps">
           <li>
-            <span>01</span> Explore proposed tools
+            <span>01</span> Explore the templates
           </li>
           <li>
-            <span>02</span> Review details when ready
+            <span>02</span> Choose what you need
           </li>
           <li>
-            <span>03</span> Authorized private access
+            <span>03</span> Downloads are not available yet
           </li>
         </ol>
         <p className="quiet">
-          Checkout and downloads are not live. Prices on the Store are in PHP
-          and are the same for every buyer.
+          Purchases and downloads are not available yet. Prices on the Store
+          are in PHP and are the same for every buyer.
         </p>
       </section>
     </PageShell>

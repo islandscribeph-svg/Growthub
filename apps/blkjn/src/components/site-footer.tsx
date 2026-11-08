@@ -14,7 +14,7 @@ export function SiteFooter() {
           <span aria-hidden="true"> / </span>
           <Link href="/about">About</Link>
         </nav>
-        <p className="draft-badge">DRAFT FOR REVIEW · NOT LIVE</p>
+        <p className="availability-note">Purchases unavailable</p>
       </div>
     </footer>
   );
