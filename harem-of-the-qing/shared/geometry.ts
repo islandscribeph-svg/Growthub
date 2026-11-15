@@ -35,6 +35,11 @@ export function rectCenter(rect: Rect): Point {
   return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
 }
 
+/** The straight-line distance between two points. */
+export function distanceBetween(a: Point, b: Point): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
 /** True when the point is inside the rectangle or on its edge. */
 export function rectContainsPoint(rect: Rect, point: Point): boolean {
   return (

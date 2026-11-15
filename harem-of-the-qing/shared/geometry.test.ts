@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rectAround, rectCenter, rectContainsPoint, rectsOverlap } from './geometry';
+import { distanceBetween, rectAround, rectCenter, rectContainsPoint, rectsOverlap } from './geometry';
 
 const room = { x: 10, y: 20, width: 100, height: 50 };
 
@@ -8,6 +8,11 @@ describe('geometry', () => {
     const rect = rectAround({ x: 50, y: 40 }, { width: 12, height: 8 });
     expect(rect).toEqual({ x: 44, y: 36, width: 12, height: 8 });
     expect(rectCenter(rect)).toEqual({ x: 50, y: 40 });
+  });
+
+  it('measures the straight line between two points', () => {
+    expect(distanceBetween({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
+    expect(distanceBetween({ x: 7, y: 7 }, { x: 7, y: 7 })).toBe(0);
   });
 
   it('knows whether a point is inside a rectangle, edges included', () => {

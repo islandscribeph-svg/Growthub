@@ -14,7 +14,7 @@ const PLAIN_MAP_COLOUR = 0xeadfc8;
 const PLAIN_WALL_COLOUR = 0x8c2f24;
 const PLAYER_COLOUR = 0xb5384f;
 const PLAYER_OUTLINE_COLOUR = 0x3d0f18;
-const PLAYER_DEPTH = 10;
+export const PLAYER_DEPTH = 10;
 /** A long pause (a hidden tab, a slow frame) must not turn into one giant step. */
 const LONGEST_FRAME_MS = 100;
 const ACTION_KEYS = [Phaser.Input.Keyboard.KeyCodes.SPACE, Phaser.Input.Keyboard.KeyCodes.ENTER];
@@ -30,17 +30,17 @@ export interface AreaSceneDeps {
  * and zones that show a prompt. There is no server yet, so the position is worked out here.
  */
 export class AreaScene extends Phaser.Scene {
-  private player!: Phaser.GameObjects.Container;
+  protected player!: Phaser.GameObjects.Container;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private walkArea!: WalkArea;
-  private position: Point = { x: 0, y: 0 };
-  private zone: Zone | null = null;
+  protected position: Point = { x: 0, y: 0 };
+  protected zone: Zone | null = null;
   private lastEvent: string | null = null;
   private notes: string[] = [];
 
   constructor(
-    private readonly deps: AreaSceneDeps,
-    private readonly area: LoadedArea,
+    protected readonly deps: AreaSceneDeps,
+    protected readonly area: LoadedArea,
   ) {
     super('area');
   }
@@ -90,7 +90,7 @@ export class AreaScene extends Phaser.Scene {
     this.refreshHud();
   }
 
-  private interact(via: InteractEvent['via']): void {
+  protected interact(via: InteractEvent['via']): void {
     if (!this.zone) return;
     this.deps.events.log({
       type: 'interact',
@@ -131,7 +131,7 @@ export class AreaScene extends Phaser.Scene {
     return bounds;
   }
 
-  private createPlayer(): Phaser.GameObjects.Container {
+  protected createPlayer(): Phaser.GameObjects.Container {
     const square = this.add
       .rectangle(0, 0, PLAYER_BODY.width, PLAYER_BODY.height, PLAYER_COLOUR)
       .setStrokeStyle(1, PLAYER_OUTLINE_COLOUR);
@@ -149,9 +149,14 @@ export class AreaScene extends Phaser.Scene {
     return this.add.container(this.position.x, this.position.y, [square, label]).setDepth(PLAYER_DEPTH);
   }
 
+  /** What the action key would do here, shown at the bottom of the screen. */
+  protected promptText(): string | null {
+    return this.zone ? this.zone.name || `zone ${this.zone.id}` : null;
+  }
+
   private refreshHud(): void {
     const { hud } = this.deps;
-    hud.showPrompt(this.zone ? this.zone.name || `zone ${this.zone.id}` : null);
+    hud.showPrompt(this.promptText());
     hud.showStatus({
       map: this.area.path,
       x: this.position.x,

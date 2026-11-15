@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
-import { DEFAULT_MAP, VIEW_HEIGHT, VIEW_WIDTH } from './config';
+import { DEFAULT_MAP, DEFAULT_SEED, VIEW_HEIGHT, VIEW_WIDTH } from './config';
 import { EventLog } from './events';
 import { TouchPad } from './input/TouchPad';
 import { loadAreaMap } from './maps/loadAreaMap';
+import { PalaceScene } from './palace/PalaceScene';
+import { PalaceSession } from './palace/PalaceSession';
+import { PalaceUi } from './palace/PalaceUi';
 import { AreaScene } from './scenes/AreaScene';
 import { Hud } from './ui/Hud';
 
@@ -18,7 +21,8 @@ async function start(): Promise<void> {
   const events = new EventLog();
 
   // Adding ?map=name to the address opens assets/maps/name.json.
-  const mapName = new URLSearchParams(window.location.search).get('map') ?? DEFAULT_MAP;
+  const query = new URLSearchParams(window.location.search);
+  const mapName = query.get('map') ?? DEFAULT_MAP;
 
   let area;
   try {
@@ -26,6 +30,18 @@ async function start(): Promise<void> {
   } catch (error) {
     hud.showMessage(error instanceof Error ? error.message : String(error));
     return;
+  }
+
+  // The painted palace has people in it and things to do. Any other map is for walking only.
+  let scene: Phaser.Scene;
+  if (mapName === DEFAULT_MAP) {
+    const session = new PalaceSession(query.get('seed') ?? DEFAULT_SEED);
+    const ui = new PalaceUi(element('palace-ui'), session);
+    // The position read-out is for map-making; ?debug brings it back.
+    element('status').hidden = !query.has('debug');
+    scene = new PalaceScene({ touchPad, hud, events, session, ui }, area);
+  } else {
+    scene = new AreaScene({ touchPad, hud, events }, area);
   }
 
   new Phaser.Game({
@@ -38,7 +54,7 @@ async function start(): Promise<void> {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [new AreaScene({ touchPad, hud, events }, area)],
+    scene: [scene],
   });
 }
 
