@@ -1,0 +1,9 @@
+{
+  // Checks /shared on its own, without browser types, so game rules can never
+  // quietly depend on the browser. The server will run this same code.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"]
+  },
+  "include": ["."]
+}
