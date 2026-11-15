@@ -225,8 +225,9 @@ export function describeEvent(event: GameEvent, court: CourtState): LogLine | nu
       const place = event.to === null ? null : court.places[event.to];
       const name = nameOf(court, event.id);
       const who = name.charAt(0).toUpperCase() + name.slice(1);
+      const where = place?.ownerId === event.id ? 'her own room' : place?.name;
       return {
-        text: place ? `${who} went to ${place.name}.` : `${who} left the palace grounds.`,
+        text: where ? `${who} went to ${where}.` : `${who} left the palace grounds.`,
         tone: 'plain',
         about: [event.id],
       };
