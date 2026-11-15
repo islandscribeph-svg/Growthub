@@ -401,3 +401,29 @@ Sections 1 to 12 left these points open. On Nov 15, 2026 Peps asked the build to
 - A gift to someone ranked above her halves only a gain, rounded down. A bad gift stays a full insult. The Empress Dowager is ranked above everyone.
 - The 50-tael cap between players limits both what a player sends and what a player receives in a game day.
 - The world uses the place names in this document: the 12 consort palaces, the lanes, the Imperial Garden, the Emperor's palace, the Empress Dowager's palace, the Cold Palace, the Imperial Kitchen, the Physician's hall and the guard barracks.
+
+**13.10 A lady's own room (section 2).** On Nov 15, 2026 Peps asked for this: "if in her room and you interrupt her or walk in you lose relationship points." Walking into another lady's own room while she is in it costs 2 relationship with her, the same as stepping on toes at her activity spot. It counts once per lady per game day, however often the visitor walks in and out. Two visitors are welcome and lose nothing: one whose relationship with her is already 50 or higher, and one who outranks her. Walking through her room while she is out costs nothing. While she is in her own room she cannot be greeted or handed a gift or silver, unless the visitor is welcome. Find her in the main hall or out walking.
+
+**13.11 Where each action is done (section 2).** Peps asked that every action be done by going to a place or a person, not from a list. An action sent from the wrong place is refused and costs nothing.
+
+- Morning respects are paid standing in the same room as the lady she bows to.
+- A greeting, a gift or silver given by hand needs the two to be in the same room.
+- Training is done at the activity spot. Cooking is done alongside the palace cook, so the cook has to be in the kitchen. Courtyard chores are done alongside the palace eunuch, so he has to be in the courtyard. Gossip is done wherever a servant is.
+- Dolling up is done in her own room.
+- Sewing to sell is made in the sewing room, and a drawing to sell in the study.
+- A servant is tipped face to face.
+
+**13.12 Where the court spends each phase (sections 1 and 6).** NPC ladies and palace servants move between their usual places about 3 times in a phase. Each time, each of them picks one of the places below at random. Players are never moved.
+
+| Who | Morning | Day | Evening | Night |
+| --- | --- | --- | --- | --- |
+| The palace mistress | Main hall | Main hall, the courtyard (walking), or her own room | Main hall or her own room | Her own room (asleep) |
+| Another lady of the palace | Main hall | The spot of her best talent, the courtyard, or her own room | The courtyard or her own room | Her own room (asleep) |
+| A personal maid | Her lady's room | Her lady's room | Her lady's room | Her lady's room |
+| The palace cook | Kitchen | Kitchen | Kitchen | Servants' quarters |
+| The palace eunuch | Courtyard | Courtyard | Servants' quarters | Servants' quarters |
+| A guard | His gate | His gate | His gate | His gate |
+
+A lady in the Cold Palace is in none of these places. The lady whose best talent a spot trains, the highest-ranked if there are several, is that spot's regular (section 5, "stepping on toes"). The 2-point loss applies only while she is in the room.
+
+**13.13 The maid's errands (sections 6 and 9).** A lady's personal maid carries a gift or silver to anyone at court, wherever they are, so a lady never has to leave her palace to give. The maid also does the shopping: cosmetics, the physician and ingredients are bought by sending her. The prices, energy costs, phases and limits are the same as doing it herself. The maid has to be in the room to be sent. The Empress Dowager accepts gifts but not silver.

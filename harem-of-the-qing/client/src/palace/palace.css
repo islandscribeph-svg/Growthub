@@ -244,16 +244,16 @@
   line-height: 1;
 }
 
-.pal-menu__result:empty {
-  display: none;
-}
-
 .pal-menu .pal-menu__result {
   display: grid;
   gap: 3px;
   padding: 8px 10px;
   border-radius: 8px;
   background: rgba(246, 234, 210, 0.08);
+}
+
+.pal-menu .pal-menu__result:empty {
+  display: none;
 }
 
 .pal-line--good {
@@ -418,16 +418,17 @@
   white-space: nowrap;
 }
 
-/* A phone held upright: the day card shrinks, and the menu and journal take the full width. */
+/* A phone held upright: the day card becomes a strip under the page link, and the menu and journal take the full width. */
 @media (max-width: 760px) {
   .pal-hud {
-    width: min(232px, calc(100vw - 150px));
+    top: calc(max(10px, env(safe-area-inset-top)) + 42px);
+    width: calc(100vw - 20px);
     padding: 8px 10px;
     gap: 5px;
   }
 
-  .pal-hud__hint,
-  .pal-hud__people {
+  .pal-hud .pal-hud__hint,
+  .pal-hud .pal-hud__people {
     display: none;
   }
 
@@ -438,10 +439,15 @@
   }
 
   .pal-menu {
-    max-height: 62vh;
+    max-height: 70vh;
+  }
+
+  .pal-option {
+    padding: 6px 9px;
   }
 
   .pal-journal {
+    top: max(10px, env(safe-area-inset-top));
     width: calc(100vw - 20px);
   }
 }

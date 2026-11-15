@@ -55,6 +55,11 @@ function button(className: string, children: readonly (Node | string)[], onClick
   return node;
 }
 
+/** True for the lines of her own story: the clock, and whatever she did or was done to her. */
+function concernsYou(line: LogLine): boolean {
+  return line.tone === 'clock' || line.about.length === 0 || line.about.includes(YOU);
+}
+
 function capital(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -307,14 +312,15 @@ export class PalaceUi {
       'ol',
       'pal-history',
       this.session.log
+        .map((entry) => ({ entry, lines: entry.lines.filter(concernsYou) }))
+        // What the rest of the court got up to is not her story to read.
+        .filter(({ entry, lines }) => lines.length > 0 || entry.helper)
         .slice(-JOURNAL_ENTRIES)
         .reverse()
-        .map((entry) =>
+        .map(({ entry, lines }) =>
           el('li', '', [
             el('p', 'pal-history__title', [el('strong', '', [entry.title]), el('span', '', [entry.stamp])]),
-            ...entry.lines
-              .filter((line) => line.tone === 'clock' || line.about.length === 0 || line.about.includes(YOU))
-              .map((line) => el('p', `pal-line pal-line--${line.tone}`, [line.text])),
+            ...lines.map((line) => el('p', `pal-line pal-line--${line.tone}`, [line.text])),
           ]),
         ),
     );
