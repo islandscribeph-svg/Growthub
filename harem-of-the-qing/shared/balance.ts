@@ -53,6 +53,9 @@ export const WORLD = {
   consortPalaces: 12,
 } as const;
 
+/** "Imperial Concubine and above ... can be a palace mistress." */
+export const MISTRESS_MIN_RANK: LadyRank = 'imperial_concubine';
+
 export const DAY_PASS = {
   /** Granted when the relationship with the mistress is this or higher... */
   minMistressRelationship: 40,

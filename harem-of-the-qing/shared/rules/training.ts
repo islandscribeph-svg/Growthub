@@ -8,11 +8,23 @@ import {
   ENERGY,
   NOT_IN_THE_DOC,
   STAT,
+  STEPPING_ON_TOES,
   TRAINING,
   type AttributeGainSize,
 } from '../balance';
 import type { ActivitySpot, Character, CharacterId, CourtState, Lady, LadyTalent } from '../types';
-import { clampStat, getCharacter, isExiled, isRightPhase, rejected, withCharacter, type RuleResult } from './core';
+import {
+  andThen,
+  clampStat,
+  getCharacter,
+  isExiled,
+  isRightPhase,
+  rejected,
+  unchanged,
+  withCharacter,
+  type RuleResult,
+} from './core';
+import { changeRelationship, relationshipBetween } from './relationships';
 
 export interface TrainIntent {
   readonly type: 'train';
@@ -20,6 +32,13 @@ export interface TrainIntent {
   readonly spot: ActivitySpot;
   /** Which talent to train. Only needed at a spot that trains two, such as the study. */
   readonly talent?: LadyTalent;
+  /**
+   * Filled in by the server, which knows who is standing where: the spot's regular, when she
+   * is present. Null or left out when the regular is away or the spot has none.
+   */
+  readonly regularPresentId?: CharacterId | null;
+  /** True when she asked the regular before using the spot. */
+  readonly askedFirst?: boolean;
 }
 
 export interface DollUpIntent {
@@ -102,7 +121,7 @@ export function train(state: CourtState, intent: TrainIntent): RuleResult {
     trained = { ...trained, [rule.alsoRaises]: after };
   }
 
-  return {
+  const done: RuleResult = {
     state: withCharacter(state, trained),
     events: [
       {
@@ -116,6 +135,21 @@ export function train(state: CourtState, intent: TrainIntent): RuleResult {
       },
     ],
   };
+  return andThen(done, (current) => stepOnToes(current, intent));
+}
+
+/**
+ * "Using it while she is present costs 2 relationship with her, unless the relationship is
+ * already 50 or higher or the player asks first."
+ */
+function stepOnToes(state: CourtState, intent: TrainIntent): RuleResult {
+  const regularId = intent.regularPresentId ?? null;
+  if (regularId === null || regularId === intent.actorId || intent.askedFirst) return unchanged(state);
+  if (!getCharacter(state, regularId)) return unchanged(state);
+  if (relationshipBetween(state, intent.actorId, regularId) >= STEPPING_ON_TOES.safeFromRelationship) {
+    return unchanged(state);
+  }
+  return changeRelationship(state, intent.actorId, regularId, -STEPPING_ON_TOES.relationshipLoss, 'used_her_activity_spot');
 }
 
 /** The Beauty bonus dolling up gives a lady with this much Makeup, before premium cosmetics. */
