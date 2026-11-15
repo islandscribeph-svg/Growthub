@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Harem of the Qing: a multiplayer 2D top-down browser game.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "dev:phone": "vite --host",

@@ -1,0 +1,71 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #14100e;
+  font-family: system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+#game {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+#game canvas {
+  display: block;
+  touch-action: none;
+}
+
+.touch-pad {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: 156px;
+  height: 156px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  border-radius: 50%;
+  background: rgba(20, 16, 14, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.touch-pad__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.8);
+  pointer-events: none;
+}
+
+.touch-pad__arrow--up {
+  grid-area: 1 / 2;
+}
+
+.touch-pad__arrow--left {
+  grid-area: 2 / 1;
+}
+
+.touch-pad__arrow--right {
+  grid-area: 2 / 3;
+}
+
+.touch-pad__arrow--down {
+  grid-area: 3 / 2;
+}
+
+.touch-pad__arrow.is-active {
+  color: #ffd166;
+  transform: scale(1.25);
+}
