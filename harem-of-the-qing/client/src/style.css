@@ -141,6 +141,24 @@ body {
   display: none;
 }
 
+.page-link {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 209, 102, 0.7);
+  border-radius: 999px;
+  background: rgba(20, 16, 14, 0.78);
+  color: #ffd166;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.page-link:hover {
+  background: rgba(70, 50, 20, 0.95);
+}
+
 /* On a narrow phone the prompt would sit on top of the direction pad, so it moves above it. */
 @media (max-width: 560px) {
   .zone-prompt {

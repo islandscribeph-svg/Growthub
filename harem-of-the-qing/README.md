@@ -2,12 +2,13 @@
 
 A multiplayer 2D top-down browser game set in the Qing dynasty imperial harem.
 
-**Where it stands: Phase 2, first half (rules 1 to 5).** Two things exist so far:
+**Where it stands: Phase 2, first half (rules 1 to 5).** Three things exist so far:
 
 - **The walking demo (Phase 1, Step A).** A red square labelled "Player" walks around one painted palace. Walls stop her, a prompt appears when she stands in a named spot, and the view follows her.
-- **The first five sets of game rules (Phase 2).** The clock, training, relationships, money and gifting, written as plain code with tests. They are not connected to the screen yet, so you cannot see them in the browser. You check them by running the tests. See [The game rules](#the-game-rules).
+- **The first five sets of game rules (Phase 2).** The clock, training, relationships, money and gifting, written as plain code with tests.
+- **The rules sandbox.** A page where you press buttons to try those rules on a small test court and read what they answer. It is a test bench, not the game. See [Try the rules in the sandbox](#try-the-rules-in-the-sandbox).
 
-There are no accounts or other players yet, and nothing is online. Everything runs on your own computer.
+There are no accounts or other players yet. Everything can run on your own computer.
 
 ## What to install (once)
 
@@ -87,6 +88,29 @@ npm run check
 
 This runs three checks in a row: the type check (looks for coding mistakes), the tests, and a production build. It should finish without the word "error" or "failed".
 
+## Try the rules in the sandbox
+
+With the game running (`npm run dev`), open <http://localhost:5173/sandbox.html>, or click **Rules sandbox** in the top-right corner of the walking demo.
+
+You play Lan, a new Second Class Attendant, in a court of seven people. Nothing is saved; reloading the page starts over.
+
+- **The clock** (left) shows the day and phase. In the real game a phase lasts 30 minutes; here you press **End the Morning** and so on to move it yourself.
+- **The actions** (middle) are grouped by when they are allowed. Every button works at any time on purpose: press one at the wrong time, or without the energy or silver, and the rules answer "Not allowed" with the reason.
+- **What just happened** (top of the middle column) shows the result of your last click in plain sentences. **Everything so far** (right) keeps the whole history.
+- **Your relationships** and **Status panel rows** (right) update after every click.
+- **Test helpers** (bottom of the middle column) are shortcuts that are not part of the game: add silver, set a talent, fall ill, go to the Cold Palace, set a relationship. They let you reach a situation without playing many days.
+
+Things worth trying:
+
+1. Press **Pay respects** in the Morning, then again. The second is refused.
+2. End the Morning without paying respects. You lose 1 Obedience and 1 with Consort Mei.
+3. In the Day, train in the dressing room, then **Doll up**. Beauty shows a bonus for today.
+4. Give Consort Mei a homemade dish. With Cooking at 10 it is a bad gift and she likes you less. Use **Set talent** to put Cooking at 70 and try again the next day.
+5. Give the same person two gifts in one day. The second costs silver and changes nothing.
+6. Give Consort Mei a trinket (worth half, she outranks you), then fine jewelry on another day (full value).
+7. Use **Set relationship** with "Everyone" and 5. You become hated and your maid's Loyalty drops by 20.
+8. Give Qing, the other player, more than 50 taels in one day. It is refused.
+
 ## The game rules
 
 The rules live in `shared/` and come only from `docs/GAME_LOGIC.md`. Nothing on the screen uses them yet.
@@ -97,7 +121,7 @@ To run every test:
 npm test
 ```
 
-It should end with a line like `Tests  257 passed`, and no line containing "failed". To run the tests for one set of rules, add part of its file name, for example `npm test -- gifting`.
+It should end with a line like `Tests  300 passed`, and no line containing "failed". To run the tests for one set of rules, add part of its file name, for example `npm test -- gifting`.
 
 | File in `shared/` | What it holds |
 | --- | --- |
@@ -114,13 +138,13 @@ It should end with a line like `Tests  257 passed`, and no line containing "fail
 
 Every rule works the same way: it is given the court as it is now and what someone wants to do, and it hands back a new court plus a list of what happened. It never changes the court it was given. If the action is not allowed, the court comes back untouched with one "refused" event that says why.
 
-**Numbers the doc does not give.** At the bottom of `balance.ts` is a section called `NOT_IN_THE_DOC`. These are effects the doc names without a number. They are left empty and switched off, not guessed. Today that is how much Beauty, Intelligence or Obedience an activity spot adds on top of the talent.
+**Numbers the doc did not give.** Section 13 of `docs/GAME_LOGIC.md`, "Decided during the build", lists the points sections 1 to 12 left open and what was decided for each: how much an activity spot adds to Beauty, Intelligence or Obedience, what skipping Morning respects costs, selling sewing and drawings, guard stipends, the energy cost of each scheme, and what a new character starts with. They are starting values like every other number, and they sit together at the bottom of `balance.ts` under "Section 13".
 
 ## What is in each folder
 
 | Folder | What it holds |
 | --- | --- |
-| `client/` | What the player sees: the Phaser game screen, the map loader, the prompt, the keyboard and touch controls. No game rules. |
+| `client/` | What the player sees: the Phaser game screen, the map loader, the prompt, the keyboard and touch controls. No game rules. `client/src/sandbox/` is the rules sandbox page, the one place that runs the rules in the browser, for testing only. |
 | `server/` | Empty for now. The game server arrives in later phases. |
 | `shared/` | The game rules as plain code, with their tests. See [The game rules](#the-game-rules). Also reading a Tiled map, walking and being blocked by walls. |
 | `assets/` | The art and Tiled files, as uploaded, plus `maps/`, where the game looks for Tiled JSON maps. |

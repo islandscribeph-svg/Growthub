@@ -11,6 +11,10 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: true,
+    // Two pages: the game (index.html) and the rules sandbox (sandbox.html).
+    rollupOptions: {
+      input: { main: 'client/index.html', sandbox: 'client/sandbox.html' },
+    },
     // Phaser is one large library (about 1.2 MB), which is expected.
     chunkSizeWarningLimit: 1600,
   },
