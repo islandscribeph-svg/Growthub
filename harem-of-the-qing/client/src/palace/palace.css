@@ -202,6 +202,21 @@
   padding-top: 4px;
 }
 
+/* A sideways or short phone: the open list scrolls inside the space above the direction pad. */
+@media (max-height: 500px) {
+  .pal-hud__whereabouts-body {
+    max-height: max(
+      0px,
+      calc(
+        100dvh - max(8px, env(safe-area-inset-top)) - 40px - 148px - max(12px, env(safe-area-inset-bottom)) - 8px -
+          11.5rem
+      )
+    );
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
 /* Toasts sit under the day card, away from the player in the middle of the screen. */
 
 .pal-notices {

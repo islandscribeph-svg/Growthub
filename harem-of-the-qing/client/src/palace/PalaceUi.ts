@@ -80,6 +80,8 @@ export class PalaceUi {
   private whereaboutsOpen = false;
   /** A phone upright is narrow; a phone on its side is short. Both use the compact day card. */
   private readonly narrowQuery = window.matchMedia('(max-width: 760px), (max-height: 500px)');
+  /** Sideways and other short windows, where an open whereabouts list can cover the direction pad. */
+  private readonly shortQuery = window.matchMedia('(max-height: 500px)');
 
   constructor(
     root: HTMLElement,
@@ -88,8 +90,29 @@ export class PalaceUi {
     this.stack.append(this.hud, this.notices);
     root.append(this.stack, this.menu, this.journal);
     window.addEventListener('keydown', (event) => this.onKey(event));
-    this.narrowQuery.addEventListener('change', () => this.renderHud());
+    window.addEventListener('keydown', (event) => {
+      if (!this.walkingKey(event.key)) return;
+      this.collapseWhereaboutsForPad();
+    });
+    window.addEventListener(
+      'pointerdown',
+      (event) => {
+        const target = event.target;
+        const pad = document.getElementById('touch-pad');
+        if (target instanceof Node && pad?.contains(target)) this.collapseWhereaboutsForPad();
+      },
+      true,
+    );
+    this.narrowQuery.addEventListener('change', () => {
+      this.renderHud();
+      this.keepWhereaboutsOffThePad();
+    });
+    window.addEventListener('resize', () => this.keepWhereaboutsOffThePad());
     this.refresh();
+  }
+
+  private walkingKey(key: string): boolean {
+    return key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight';
   }
 
   get menuOpen(): boolean {
@@ -259,15 +282,62 @@ export class PalaceUi {
       const summary = el('summary', '', ['Where everyone is']);
       summary.tabIndex = -1;
       const panel = el('details', 'pal-hud__whereabouts', [summary, el('div', 'pal-hud__whereabouts-body', [hint, people])]);
-      panel.open = this.whereaboutsOpen;
       panel.addEventListener('toggle', () => {
         this.whereaboutsOpen = panel.open;
+        if (panel.open) this.keepWhereaboutsOffThePad();
       });
       this.hud.replaceChildren(clock, purse, here, panel, journalButton);
+      panel.open = this.whereaboutsOpen;
+      if (panel.open) this.keepWhereaboutsOffThePad();
       return;
     }
 
     this.hud.replaceChildren(clock, hint, purse, here, people, journalButton);
+  }
+
+  /** Folds the whereabouts list on a short screen once she walks, so the direction pad stays clear. */
+  private collapseWhereaboutsForPad(): void {
+    if (!this.shortQuery.matches || !this.whereaboutsOpen) return;
+    this.collapseWhereabouts();
+  }
+
+  private collapseWhereabouts(): void {
+    this.whereaboutsOpen = false;
+    const panel = this.hud.querySelector('.pal-hud__whereabouts');
+    if (panel instanceof HTMLDetailsElement) panel.open = false;
+  }
+
+  /**
+   * An open whereabouts list must stop above the direction pad. On a tall phone there is room,
+   * so the list is left alone. On a short one it scrolls, or folds away when a line would not fit.
+   */
+  private keepWhereaboutsOffThePad(): void {
+    const panel = this.hud.querySelector('.pal-hud__whereabouts');
+    const pad = document.getElementById('touch-pad');
+    if (!(panel instanceof HTMLDetailsElement) || !panel.open || !(pad instanceof HTMLElement)) return;
+    const body = panel.querySelector('.pal-hud__whereabouts-body');
+    if (!(body instanceof HTMLElement)) return;
+
+    body.style.maxHeight = '';
+    const gap = 8;
+    const padTop = pad.getBoundingClientRect().top - gap;
+    const fitted = body.getBoundingClientRect().height;
+    // A sideways phone has almost no room under the day card. Fold the list rather than
+    // paint an empty open panel over the direction pad.
+    if (this.shortQuery.matches && fitted < 36) {
+      this.collapseWhereabouts();
+      return;
+    }
+    const overflow = this.hud.getBoundingClientRect().bottom - padTop;
+    if (overflow <= 0) return;
+
+    const next = Math.floor(fitted - overflow);
+    if (next < 36) {
+      this.collapseWhereabouts();
+      return;
+    }
+    body.style.maxHeight = `${next}px`;
+    body.style.overflowY = 'auto';
   }
 
   private whereaboutsList(): HTMLElement {
