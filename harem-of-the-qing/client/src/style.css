@@ -69,3 +69,81 @@ body {
   color: #ffd166;
   transform: scale(1.25);
 }
+
+.status {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  max-width: min(420px, calc(100vw - 20px));
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(20, 16, 14, 0.78);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-line;
+  pointer-events: none;
+}
+
+.zone-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 22px;
+  border: 2px solid #ffd166;
+  border-radius: 10px;
+  background: rgba(20, 16, 14, 0.88);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zone-prompt[hidden] {
+  display: none;
+}
+
+.zone-prompt strong {
+  font-size: 18px;
+  color: #ffd166;
+}
+
+.zone-prompt span {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.zone-prompt:active {
+  background: rgba(70, 50, 20, 0.95);
+}
+
+.message {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #14100e;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.message[hidden] {
+  display: none;
+}
+
+/* On a narrow phone the prompt would sit on top of the direction pad, so it moves above it. */
+@media (max-width: 560px) {
+  .zone-prompt {
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 176px);
+  }
+}
