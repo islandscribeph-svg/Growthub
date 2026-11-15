@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   root: 'client',
+  // Everything in assets/ is served as-is, so the game can load assets/maps/x.json as "maps/x.json".
+  publicDir: '../assets',
   server: {
     // The client imports rule code from ../shared, which sits outside `root`.
     fs: { allow: ['..'] },
