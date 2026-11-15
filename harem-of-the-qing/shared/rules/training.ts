@@ -6,11 +6,10 @@ import {
   ACTIVITY_SPOT_RULES,
   DOLL_UP,
   ENERGY,
-  NOT_IN_THE_DOC,
+  SPOT_ATTRIBUTE_GAIN,
   STAT,
   STEPPING_ON_TOES,
   TRAINING,
-  type AttributeGainSize,
 } from '../balance';
 import type { ActivitySpot, Character, CharacterId, CourtState, Lady, LadyTalent } from '../types';
 import {
@@ -64,28 +63,6 @@ export function trainingGain(talent: number): number {
   return Math.max(TRAINING.minGain, TRAINING.maxGain - stepsDown);
 }
 
-export interface AttributeGainNumbers {
-  readonly spotAttributeGain: number | null;
-  readonly spotAttributeGainSmall: number | null;
-}
-
-/**
- * How many points of its "also raises" attribute a spot gives per training action.
- * The doc gives no number for this yet, so with the numbers as they stand the answer is 0.
- */
-export function spotAttributeGain(size: AttributeGainSize, numbers: AttributeGainNumbers = NOT_IN_THE_DOC): number {
-  switch (size) {
-    case 'normal':
-      return numbers.spotAttributeGain ?? 0;
-    case 'small':
-      return numbers.spotAttributeGainSmall ?? 0;
-    default: {
-      const unknown: never = size;
-      throw new Error(`Unknown attribute gain size: ${String(unknown)}`);
-    }
-  }
-}
-
 /** One training action at an activity spot: costs energy, raises a talent and perhaps an attribute. */
 export function train(state: CourtState, intent: TrainIntent): RuleResult {
   const actor = getCharacter(state, intent.actorId);
@@ -116,7 +93,7 @@ export function train(state: CourtState, intent: TrainIntent): RuleResult {
   let attributeGain = 0;
   if (rule.alsoRaises !== null) {
     const before = actor[rule.alsoRaises];
-    const after = clampStat(before + spotAttributeGain(rule.attributeGain));
+    const after = clampStat(before + SPOT_ATTRIBUTE_GAIN[rule.attributeGain]);
     attributeGain = after - before;
     trained = { ...trained, [rule.alsoRaises]: after };
   }

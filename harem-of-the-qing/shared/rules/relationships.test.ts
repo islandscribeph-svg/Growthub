@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENERGY, HATED, RELATIONSHIP, RELATIONSHIP_CHANGE, STEPPING_ON_TOES } from '../balance';
+import { ENERGY, GREETING, HATED, RELATIONSHIP, RELATIONSHIP_CHANGE, SKIPPED_RESPECTS, STAT, STEPPING_ON_TOES } from '../balance';
 import {
   HIGHEST_ROLL,
   LOWEST_ROLL,
@@ -9,12 +9,16 @@ import {
   makeGuard,
   makeLady,
   makeMaid,
+  makePlayerLady,
   rejectionReasons,
   scriptedRng,
 } from '../testing/fixtures';
 import { EMPEROR_ID, EMPRESS_DOWAGER_ID, type Phase } from '../types';
+import { advancePhase } from './clock';
 import {
   applyCaughtSabotagingFallout,
+  applySkippedRespects,
+  npcsPayRespects,
   applyKindness,
   applyWitnessFallout,
   areFriends,
@@ -461,6 +465,166 @@ describe('a greeting', () => {
     const result = greet(court, { type: 'greet', actorId: 'lan', targetId: 'mei' });
     expect(relationshipBetween(result.state, 'lan', 'mei')).toBe(RELATIONSHIP.max);
     expect(result.state.characters['lan']?.energy).toBe(ENERGY.perDay - ENERGY.socializing);
+  });
+});
+
+describe('greeting the same person twice in a game day', () => {
+  const pair = () => makeCourt({ characters: [makeLady({ id: 'lan' }), makeLady({ id: 'mei' }), makeLady({ id: 'yu' })] });
+  const hello = (targetId: string) => ({ type: 'greet', actorId: 'lan', targetId }) as const;
+
+  it('is refused, and costs no energy', () => {
+    const first = greet(pair(), hello('mei'));
+    const second = greet(first.state, hello('mei'));
+    expect(rejectionReasons(second.events)).toEqual(['already_greeted_today']);
+    expect(second.state).toBe(first.state);
+    expect(relationshipBetween(second.state, 'lan', 'mei')).toBe(RELATIONSHIP.strangers + RELATIONSHIP_CHANGE.respectsOrGreeting);
+  });
+
+  it('does not stop her greeting someone else, or being greeted back', () => {
+    const first = greet(pair(), hello('mei'));
+    expect(rejectionReasons(greet(first.state, hello('yu')).events)).toEqual([]);
+    const back = greet(first.state, { type: 'greet', actorId: 'mei', targetId: 'lan' });
+    expect(rejectionReasons(back.events)).toEqual([]);
+    expect(relationshipBetween(back.state, 'lan', 'mei')).toBe(RELATIONSHIP.strangers + 2 * RELATIONSHIP_CHANGE.respectsOrGreeting);
+  });
+
+  it('is allowed again the next game day', () => {
+    let state = greet(pair(), hello('mei')).state;
+    while (state.phase !== 'day' || state.day === 1) state = advancePhase(state).state;
+    expect(rejectionReasons(greet(state, hello('mei')).events)).toEqual([]);
+  });
+
+  it('with the starting values: one greeting per person per day', () => {
+    expect(GREETING.perPersonPerDay).toBe(1);
+  });
+});
+
+describe('skipping Morning respects', () => {
+  const START = makeLady({ id: 'x' }).obedience;
+  const household = (extra: Parameters<typeof makeCourt>[0] = {}) =>
+    makeCourt({
+      phase: 'morning',
+      characters: [
+        makeLady({ id: 'lan' }),
+        makeLady({ id: 'mistress', rank: 'consort' }),
+        makeLady({ id: 'empress', rank: 'empress', palaceId: 'empress_palace' }),
+      ],
+      ...extra,
+    });
+
+  it('costs Obedience and standing with the lady she should have bowed to', () => {
+    const result = applySkippedRespects(household());
+    expect(result.state.characters['lan']).toMatchObject({ obedience: START - SKIPPED_RESPECTS.obedienceLoss });
+    expect(relationshipBetween(result.state, 'lan', 'mistress')).toBe(RELATIONSHIP.strangers - SKIPPED_RESPECTS.relationshipLoss);
+    expect(eventsOfType(result.events, 'respects_skipped')).toContainEqual({
+      type: 'respects_skipped',
+      characterId: 'lan',
+      toId: 'mistress',
+      obedienceFrom: START,
+      obedienceTo: START - SKIPPED_RESPECTS.obedienceLoss,
+    });
+    expect(eventsOfType(result.events, 'relationship_changed').map((event) => event.cause)).toContain('skipped_morning_respects');
+  });
+
+  it('costs a mistress who skipped them her standing with the Empress', () => {
+    const result = applySkippedRespects(household());
+    expect(relationshipBetween(result.state, 'mistress', 'empress')).toBe(RELATIONSHIP.strangers - SKIPPED_RESPECTS.relationshipLoss);
+    expect(result.state.characters['mistress']).toMatchObject({ obedience: START - SKIPPED_RESPECTS.obedienceLoss });
+  });
+
+  it('never applies to the Empress, who bows to nobody', () => {
+    const result = applySkippedRespects(household());
+    expect(result.state.characters['empress']).toMatchObject({ obedience: START });
+    expect(eventsOfType(result.events, 'respects_skipped').map((event) => event.characterId)).toEqual(['lan', 'mistress']);
+  });
+
+  it('costs nothing to a lady who paid them', () => {
+    const paid = payRespects(household(), { type: 'pay_respects', actorId: 'lan' });
+    const result = applySkippedRespects(paid.state);
+    expect(result.state.characters['lan']).toMatchObject({ obedience: START });
+    expect(relationshipBetween(result.state, 'lan', 'mistress')).toBe(RELATIONSHIP.strangers + RELATIONSHIP_CHANGE.respectsOrGreeting);
+  });
+
+  it('costs nothing when her palace has no mistress', () => {
+    const court = makeCourt({ phase: 'morning', characters: [makeLady({ id: 'lan' }), makeLady({ id: 'mei' })] });
+    const result = applySkippedRespects(court);
+    expect(result.state).toBe(court);
+    expect(result.events).toEqual([]);
+  });
+
+  it('is not held against a lady in the Cold Palace, who cannot attend', () => {
+    const court = makeCourt({
+      phase: 'morning',
+      day: 3,
+      characters: [makeLady({ id: 'lan', exiledThroughDay: 3 }), makeLady({ id: 'mistress', rank: 'consort' })],
+    });
+    expect(applySkippedRespects(court).state.characters['lan']).toMatchObject({ obedience: START });
+    const released = { ...court, day: 4 };
+    expect(applySkippedRespects(released).state.characters['lan']).toMatchObject({ obedience: START - SKIPPED_RESPECTS.obedienceLoss });
+  });
+
+  it('does not apply to guards', () => {
+    const court = makeCourt({ phase: 'morning', characters: [makeGuard({ id: 'bo' }), makeLady({ id: 'mistress', rank: 'consort' })] });
+    expect(eventsOfType(applySkippedRespects(court).events, 'respects_skipped')).toEqual([]);
+  });
+
+  it('never takes Obedience or a relationship below the bottom of the scale', () => {
+    const court = makeCourt({
+      phase: 'morning',
+      characters: [makeLady({ id: 'lan', obedience: STAT.min }), makeLady({ id: 'mistress', rank: 'consort' })],
+      relationships: [['lan', 'mistress', RELATIONSHIP.min]],
+    });
+    const result = applySkippedRespects(court);
+    expect(result.state.characters['lan']).toMatchObject({ obedience: STAT.min });
+    expect(relationshipBetween(result.state, 'lan', 'mistress')).toBe(RELATIONSHIP.min);
+  });
+
+  it('with the starting values: 1 Obedience and 1 relationship each skipped Morning', () => {
+    expect(SKIPPED_RESPECTS).toEqual({ obedienceLoss: 1, relationshipLoss: 1 });
+  });
+
+  it('never changes the state it was given', () => {
+    expect(() => applySkippedRespects(deepFreeze(household()))).not.toThrow();
+  });
+});
+
+describe('the NPC Morning routine', () => {
+  const household = (phase: Phase = 'morning') =>
+    makeCourt({
+      phase,
+      characters: [
+        makeLady({ id: 'npc' }),
+        makePlayerLady({ id: 'player' }),
+        makeLady({ id: 'mistress', rank: 'consort' }),
+        makeLady({ id: 'empress', rank: 'empress', palaceId: 'empress_palace' }),
+        makeGuard({ id: 'bo' }),
+      ],
+    });
+
+  it('has every NPC lady pay her respects, and leaves players to do their own', () => {
+    const result = npcsPayRespects(household());
+    expect(eventsOfType(result.events, 'respects_paid').map((event) => [event.characterId, event.toId])).toEqual([
+      ['npc', 'mistress'],
+      ['mistress', 'empress'],
+    ]);
+    expect(result.state.characters['player']?.today.paidRespects).toBe(false);
+    expect(rejectionReasons(result.events)).toEqual([]);
+  });
+
+  it('means no NPC is marked down when the Morning ends', () => {
+    const result = applySkippedRespects(npcsPayRespects(household()).state);
+    expect(eventsOfType(result.events, 'respects_skipped').map((event) => event.characterId)).toEqual(['player']);
+  });
+
+  it('does nothing twice in one Morning, and nothing outside the Morning', () => {
+    const once = npcsPayRespects(household());
+    expect(npcsPayRespects(once.state).events).toEqual([]);
+    const day = household('day');
+    expect(npcsPayRespects(day).state).toBe(day);
+  });
+
+  it('never changes the state it was given', () => {
+    expect(() => npcsPayRespects(deepFreeze(household()))).not.toThrow();
   });
 });
 

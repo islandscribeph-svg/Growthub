@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CLOCK, ENERGY, HOURS_PER_REAL_DAY, MS_PER_HOUR } from '../balance';
+import { CLOCK, ENERGY, HOURS_PER_REAL_DAY, MS_PER_HOUR, RELATIONSHIP, RELATIONSHIP_CHANGE, SKIPPED_RESPECTS } from '../balance';
 import { deepFreeze, eventsOfType, makeCourt, makeGuard, makeLady, makeMaid } from '../testing/fixtures';
 import { PHASES } from '../types';
 import { advancePhase, clockAt, gameDayMs, gameDaysPerRealDay, morningEnergy, nextPhase, phaseMs } from './clock';
+import { payRespects, relationshipBetween } from './relationships';
 
 describe('the game day', () => {
   it('has four phases in the order Morning, Day, Evening, Night', () => {
@@ -145,6 +146,8 @@ describe('the daily records', () => {
         dollUpBonus: 12,
         premiumCosmetics: true,
         giftedTo: ['mei'],
+        greeted: ['mei'],
+        workSold: 1,
         silverSentToPlayers: 20,
         silverReceivedFromPlayers: 30,
       },
@@ -156,6 +159,8 @@ describe('the daily records', () => {
       dollUpBonus: 0,
       premiumCosmetics: false,
       giftedTo: [],
+      greeted: [],
+      workSold: 0,
       silverSentToPlayers: 0,
       silverReceivedFromPlayers: 0,
     });
@@ -169,5 +174,38 @@ describe('the daily records', () => {
     expect(state.phase).toBe('night');
     expect(state.characters['lan']?.today.paidRespects).toBe(true);
     expect(state.characters['lan']?.today.dollUpBonus).toBe(9);
+  });
+});
+
+describe('the end of the Morning', () => {
+  const household = () =>
+    makeCourt({
+      phase: 'morning',
+      characters: [makeLady({ id: 'lan' }), makeLady({ id: 'mistress', rank: 'consort' })],
+    });
+
+  it('costs a lady who skipped her respects a little Obedience and a little standing with her mistress', () => {
+    const before = household();
+    const result = advancePhase(before);
+    expect(result.state.phase).toBe('day');
+    expect(result.state.characters['lan']).toMatchObject({ obedience: makeLady({ id: 'x' }).obedience - SKIPPED_RESPECTS.obedienceLoss });
+    expect(relationshipBetween(result.state, 'lan', 'mistress')).toBe(RELATIONSHIP.strangers - SKIPPED_RESPECTS.relationshipLoss);
+  });
+
+  it('costs nothing to a lady who paid them', () => {
+    const paid = payRespects(household(), { type: 'pay_respects', actorId: 'lan' });
+    const result = advancePhase(paid.state);
+    expect(result.state.characters['lan']).toMatchObject({ obedience: makeLady({ id: 'x' }).obedience });
+    expect(relationshipBetween(result.state, 'lan', 'mistress')).toBe(
+      RELATIONSHIP.strangers + RELATIONSHIP_CHANGE.respectsOrGreeting,
+    );
+  });
+
+  it('is the only phase change that checks respects', () => {
+    let state = advancePhase(household()).state;
+    const afterMorning = relationshipBetween(state, 'lan', 'mistress');
+    for (let step = 0; step < PHASES.length - 1; step++) state = advancePhase(state).state;
+    expect(state.phase).toBe('morning');
+    expect(relationshipBetween(state, 'lan', 'mistress')).toBe(afterMorning);
   });
 });

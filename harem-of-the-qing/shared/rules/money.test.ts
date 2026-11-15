@@ -3,9 +3,13 @@ import {
   BRIBE,
   CHILDBEARING_RESTORATION,
   DOLL_UP,
+  ENERGY,
+  GIFT_QUALITY,
+  GUARD_STIPEND,
   HATED,
   RELATIONSHIP,
   SELLING,
+  SELLING_WORK,
   SERVANT,
   SHOP_PRICE,
   STAT,
@@ -22,8 +26,13 @@ import {
   makeMaid,
   makePlayerLady,
   rejectionReasons,
+  rollOf,
+  scriptedRng,
+  HIGHEST_ROLL,
+  LOWEST_ROLL,
 } from '../testing/fixtures';
-import { LADY_RANKS, type CourtState, type ShopItem } from '../types';
+import { createRng } from '../rng';
+import { GUARD_RANKS, LADY_RANKS, type CourtState, type Lady, type Phase, type ShopItem } from '../types';
 import { advancePhase } from './clock';
 import {
   bribeCost,
@@ -32,6 +41,7 @@ import {
   giveSilver,
   payStipends,
   saleValue,
+  sellWork,
   servantRefusesBribe,
   silencedBribeCost,
   spendSilver,
@@ -107,8 +117,26 @@ describe('stipends', () => {
     ]);
   });
 
-  it('have no amount for guards, because the doc gives none', () => {
-    expect(stipendFor(makeGuard({ id: 'bo' }), 1)).toBe(0);
+  it('pay a guard the amount for his rank', () => {
+    for (const rank of GUARD_RANKS) {
+      expect(stipendFor(makeGuard({ id: 'bo', rank }), 1)).toBe(GUARD_STIPEND[rank]);
+    }
+    const result = payStipends(makeCourt({ characters: [makeGuard({ id: 'bo' })] }));
+    expect(silverOf(result.state, 'bo')).toBe(GUARD_STIPEND.blue_feather_guard);
+  });
+
+  it('pay a guard the same as a lady of the same rank number', () => {
+    GUARD_RANKS.forEach((rank, index) => {
+      const ladyRank = LADY_RANKS[index];
+      if (!ladyRank) throw new Error('more guard ranks than lady ranks');
+      expect(GUARD_STIPEND[rank]).toBe(STIPEND[ladyRank]);
+    });
+  });
+
+  it('are not paid to a guard posted to the frontier', () => {
+    const bo = makeGuard({ id: 'bo', exiledThroughDay: 6 });
+    expect(stipendFor(bo, 6)).toBe(0);
+    expect(stipendFor(bo, 7)).toBe(GUARD_STIPEND.blue_feather_guard);
   });
 });
 
@@ -508,5 +536,88 @@ describe('selling her own work', () => {
 
   it('with the starting values: a piece of quality 60 sells for 12 taels', () => {
     expect(saleValue(60)).toBe(12);
+  });
+});
+
+describe('selling her own work through a eunuch', () => {
+  const EVEN_ROLL = rollOf(GIFT_QUALITY.rollMin, GIFT_QUALITY.rollMax, 0);
+  const maker = (talents: Partial<Lady['talents']>, overrides: Partial<Lady> = {}) =>
+    makeLady({ id: 'lan', talents: { ...makeLady({ id: 'x' }).talents, ...talents }, ...overrides });
+  const courtOf = (lan: Lady, phase: Phase = 'day', day = 1) => makeCourt({ phase, day, characters: [lan] });
+  const sell = (work: 'sewing' | 'drawing' = 'sewing') => ({ type: 'sell_work', actorId: 'lan', work }) as const;
+
+  it('pays the quality of the piece divided by the doc’s number, and costs the energy of a training action', () => {
+    const result = sellWork(courtOf(maker({ sewing: 60 })), sell(), scriptedRng([EVEN_ROLL]));
+    expect(silverOf(result.state, 'lan')).toBe(saleValue(60));
+    expect(result.state.characters['lan']?.energy).toBe(ENERGY.perDay - ENERGY.training);
+    expect(eventsOfType(result.events, 'work_sold')).toEqual([
+      { type: 'work_sold', characterId: 'lan', work: 'sewing', quality: 60, price: saleValue(60) },
+    ]);
+  });
+
+  it('rolls the quality like a homemade gift: her talent plus the roll', () => {
+    const low = sellWork(courtOf(maker({ sewing: 50 })), sell(), scriptedRng([LOWEST_ROLL]));
+    expect(eventsOfType(low.events, 'work_sold')[0]?.quality).toBe(50 + GIFT_QUALITY.rollMin);
+    const high = sellWork(courtOf(maker({ sewing: 50 })), sell(), scriptedRng([HIGHEST_ROLL]));
+    expect(eventsOfType(high.events, 'work_sold')[0]?.quality).toBe(50 + GIFT_QUALITY.rollMax);
+  });
+
+  it('sells sewing on Sewing and drawings on Drawing', () => {
+    expect(SELLING_WORK.talent).toEqual({ sewing: 'sewing', drawing: 'drawing' });
+    const lan = maker({ sewing: 20, drawing: 80 });
+    const drawing = sellWork(courtOf(lan), sell('drawing'), scriptedRng([EVEN_ROLL]));
+    expect(eventsOfType(drawing.events, 'work_sold')[0]).toMatchObject({ quality: 80, price: saleValue(80) });
+    const sewing = sellWork(courtOf(lan), sell('sewing'), scriptedRng([EVEN_ROLL]));
+    expect(eventsOfType(sewing.events, 'work_sold')[0]).toMatchObject({ quality: 20, price: saleValue(20) });
+  });
+
+  it('is written in the ledger as a sale', () => {
+    const result = sellWork(courtOf(maker({ sewing: 60 })), sell(), scriptedRng([EVEN_ROLL]));
+    expect(result.state.ledger).toMatchObject([
+      { characterId: 'lan', direction: 'in', amount: saleValue(60), reason: 'sale', item: 'sewing' },
+    ]);
+  });
+
+  it('earns nothing for a worthless piece, and still costs the energy', () => {
+    const result = sellWork(courtOf(maker({ sewing: 0 })), sell(), scriptedRng([LOWEST_ROLL]));
+    expect(silverOf(result.state, 'lan')).toBe(0);
+    expect(result.state.ledger).toEqual([]);
+    expect(result.state.characters['lan']?.energy).toBe(ENERGY.perDay - ENERGY.training);
+  });
+
+  it('is limited per game day, and allowed again the next day', () => {
+    let state = courtOf(maker({ sewing: 60, drawing: 60 }));
+    for (let sale = 0; sale < SELLING_WORK.salesPerDay; sale++) state = sellWork(state, sell(), createRng(sale)).state;
+    const overLimit = sellWork(state, sell('drawing'), scriptedRng([]));
+    expect(rejectionReasons(overLimit.events)).toEqual(['already_sold_today']);
+    expect(overLimit.state).toBe(state);
+    while (state.phase !== 'day' || state.day === 1) state = advancePhase(state).state;
+    expect(rejectionReasons(sellWork(state, sell(), createRng(9)).events)).toEqual([]);
+  });
+
+  it('with the starting values: one piece a day', () => {
+    expect(SELLING_WORK.salesPerDay).toBe(1);
+  });
+
+  it('is refused outside the Day phase, without the energy, from the Cold Palace, and to a guard', () => {
+    const lan = maker({ sewing: 60 });
+    for (const phase of ['morning', 'evening', 'night'] as const) {
+      expect(rejectionReasons(sellWork(courtOf(lan, phase), sell(), scriptedRng([])).events)).toEqual(['wrong_phase']);
+    }
+    const tired = maker({ sewing: 60 }, { energy: ENERGY.training - 1 });
+    expect(rejectionReasons(sellWork(courtOf(tired), sell(), scriptedRng([])).events)).toEqual(['not_enough_energy']);
+    const exiled = maker({ sewing: 60 }, { exiledThroughDay: 3 });
+    expect(rejectionReasons(sellWork(courtOf(exiled, 'day', 3), sell(), scriptedRng([])).events)).toEqual(['in_cold_palace']);
+    const guards = makeCourt({ characters: [makeGuard({ id: 'lan' })] });
+    expect(rejectionReasons(sellWork(guards, sell(), scriptedRng([])).events)).toEqual(['not_a_lady']);
+    expect(rejectionReasons(sellWork(courtOf(lan), { ...sell(), actorId: 'nobody' }, scriptedRng([])).events)).toEqual([
+      'unknown_character',
+    ]);
+  });
+
+  it('gives the same result for the same seed, and never changes the state it was given', () => {
+    const court = deepFreeze(courtOf(maker({ sewing: 55 })));
+    expect(sellWork(court, sell(), createRng(4))).toEqual(sellWork(court, sell(), createRng(4)));
+    expect(silverOf(court, 'lan')).toBe(0);
   });
 });

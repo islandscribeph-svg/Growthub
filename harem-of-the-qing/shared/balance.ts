@@ -2,10 +2,10 @@
  * balance.ts: the one place for every number in docs/GAME_LOGIC.md (thresholds, costs,
  * percentages, durations, weights). Tune the game here; the rule logic never needs to change.
  *
- * - Every value is copied from docs/GAME_LOGIC.md. The section it comes from is named above it.
+ * - Every value comes from docs/GAME_LOGIC.md. The section it comes from is named above it.
  * - Chances are written as fractions: 0.15 means 15%.
- * - Nothing here is invented. Numbers the doc does not give are listed, empty, at the bottom
- *   under NOT_IN_THE_DOC, and the effects that need them are switched off until they are filled.
+ * - Sections 1 to 12 of the doc are Peps's. Section 13 holds the numbers the doc left open, which
+ *   Peps asked the build to decide. Those are grouped at the bottom under "Section 13".
  */
 import type {
   ActivitySpot,
@@ -14,6 +14,8 @@ import type {
   LadyRank,
   LadyTalent,
   Phase,
+  SchemeKind,
+  SellableWork,
   ShopItem,
   TrainableAttribute,
 } from './types';
@@ -43,6 +45,7 @@ export const ACTION_PHASE = {
   doll_up: 'day',
   give_gift: 'day',
   greet: 'day',
+  sell_work: 'day',
 } as const satisfies Record<string, Phase>;
 
 // ---------------------------------------------------------------------------------------------
@@ -495,18 +498,70 @@ export const MS_PER_HOUR = 3_600_000;
 export const HOURS_PER_REAL_DAY = 24;
 
 // ---------------------------------------------------------------------------------------------
-// NOT IN THE DOC
+// Section 13. Decided during the build
 //
-// The doc names these effects but gives no number for them. They are left empty (null) rather
-// than invented, and each effect is switched off until Peps fills in a number here.
+// Sections 1 to 12 name these effects without a number or a rule. Peps asked the build to
+// decide them. They are starting values to tune in playtesting, like every other number here.
 // ---------------------------------------------------------------------------------------------
 
-export const NOT_IN_THE_DOC: {
-  readonly spotAttributeGain: number | null;
-  readonly spotAttributeGainSmall: number | null;
-} = {
-  /** Section 3, "Also raises": how many points of Beauty, Intelligence or Obedience per training action. */
-  spotAttributeGain: null,
-  /** Section 3, the rows marked "(small)": how many points. */
-  spotAttributeGainSmall: null,
+/** 13.1 Points of the "Also raises" attribute per training action; rows marked "(small)" give half. */
+export const SPOT_ATTRIBUTE_GAIN: Readonly<Record<AttributeGainSize, number>> = {
+  normal: 2,
+  small: 1,
 };
+
+/** 13.2 What a lady loses each Morning she does not pay her respects. */
+export const SKIPPED_RESPECTS = {
+  obedienceLoss: 1,
+  relationshipLoss: 1,
+} as const;
+
+/** 13.3 Only the first greeting to each person per game day is allowed, like gifts. */
+export const GREETING = {
+  perPersonPerDay: 1,
+} as const;
+
+/**
+ * 13.4 Selling her own work. Making a piece costs the same energy as a training action, its
+ * quality is rolled like a homemade gift (talent plus GIFT_QUALITY's roll), and the eunuch
+ * takes one piece a day.
+ */
+export const SELLING_WORK: {
+  readonly salesPerDay: number;
+  readonly talent: Readonly<Record<SellableWork, LadyTalent>>;
+} = {
+  salesPerDay: 1,
+  talent: { sewing: 'sewing', drawing: 'drawing' },
+};
+
+/** 13.6 Guards are paid like a lady of the same rank number. None while posted to the frontier. */
+export const GUARD_STIPEND: Readonly<Record<GuardRank, number>> = {
+  blue_feather_guard: 5,
+  third_class_guard: 8,
+  second_class_guard: 12,
+  first_class_guard: 20,
+  guard_of_the_imperial_presence: 30,
+  emperors_favorite: 45,
+};
+
+/** 13.7 Schemes done with her own hands cost the most; schemes done through a servant's mouth cost less. */
+export const SCHEME_ENERGY: Readonly<Record<SchemeKind, number>> = {
+  poison: ENERGY.schemeMax,
+  fertility_poison: ENERGY.schemeMax,
+  burn_belongings: ENERGY.schemeMax,
+  bribe_servant_to_lie: ENERGY.schemeMin,
+  separate_mother_and_child: ENERGY.schemeMin,
+};
+
+/** 13.8 What a newly created character starts with. Childbearing has its own start in section 3. */
+export const STARTING = {
+  beauty: 30,
+  intelligence: 30,
+  obedience: 30,
+  talent: 10,
+  favor: 0,
+  silver: 20,
+  maidLoyalty: 50,
+  guardLoyalty: 30,
+  martialSkill: 100,
+} as const;

@@ -371,3 +371,33 @@ A man plays an imperial guard who rises by winning the Emperor's favor, competin
 **Falling.** A guard who loses a trial is demoted one rank and posted to the frontier for 6 game days. It is his version of the Cold Palace.
 
 **One choice per Evening.** The Emperor chooses one person per Evening across both paths, so ladies and guards compete for the same night.
+
+## 13. Decided during the build
+
+Sections 1 to 12 left these points open. On Nov 15, 2026 Peps asked the build to decide them. Each is a starting value to tune in playtesting, like every other number here, and each lives in `shared/balance.ts` under "Section 13". Where this section and an earlier one disagree, this section wins.
+
+**13.1 What an activity spot "also raises" (section 3).** Each training action adds 2 points to the attribute in the "Also raises" column, or 1 point where the table says "(small)". The gain does not shrink as the attribute rises.
+
+**13.2 Skipping Morning respects (section 1).** When the Morning ends, a lady who had someone to bow to and did not loses 1 Obedience and 1 relationship with her. It does not apply to a lady in the Cold Palace, who cannot attend, or to a lady with nobody to bow to (the Empress, or a lady whose palace has no mistress). NPC ladies always pay their respects.
+
+**13.3 Greetings (section 5).** A lady can greet each person once per game day. A second greeting to the same person that day is refused and costs nothing. This stops ten greetings a day buying +10 with one person.
+
+**13.4 Selling her own sewing or drawings (section 9).** In the Day phase a lady can make one piece and sell it through a eunuch. It costs 2 energy, the same as a training action. Its quality is her Sewing or Drawing plus a random number from -10 to +10, the same roll as a homemade gift. She is paid the quality divided by 5, rounded down, and never less than nothing. One piece per game day. There is no cost for materials. Not from the Cold Palace.
+
+**13.5 Servant Loyalty (section 6).** Tipping (section 9) is the one way a lady raises her servants' Loyalty; it is what "gifts or is kind to the servant" means in play. There is no action to punish a servant, so nothing lowers Loyalty that way. Loyalty falls only when she becomes hated.
+
+**13.6 Guard stipends (section 12).** A guard is paid like a lady of the same rank number: 5, 8, 12, 20, 30 and 45 taels per game day from Blue Feather Guard up to The Emperor's Favorite. A guard posted to the frontier receives none.
+
+**13.7 Energy cost of each scheme (section 7).** Schemes she carries out with her own hands cost 4 energy: poisoning food, fertility poison, burning belongings. Schemes done through a servant's mouth cost 3: bribing a servant to lie (fabricated evidence or a rumor) and the custody petition.
+
+**13.8 What a new character starts with.** Beauty 30, Intelligence 30, Obedience 30 (Loyalty 30 for a guard), every talent 10, Favor 0, 20 taels, and a personal maid with 50 Loyalty. Childbearing starts at 100 (section 3) and a guard's Martial Skill at 100. What NPCs start with is decided when courts are created.
+
+**13.9 Readings of the earlier sections, now settled.**
+
+- The four phases share the game day equally: 30 real minutes each.
+- "Adds 1 to 3 points" to a talent is a step, not a roll: 3 points while the talent is below 40, 2 from 40 to 79, 1 from 80 up.
+- Respects are paid in the Morning. Training, dolling up, greeting, gifting and selling happen in the Day phase. Buying, tipping and giving silver can happen in any phase.
+- Giving a gift costs 1 energy. A second gift to the same person in one game day is delivered and paid for but changes nothing.
+- A gift to someone ranked above her halves only a gain, rounded down. A bad gift stays a full insult. The Empress Dowager is ranked above everyone.
+- The 50-tael cap between players limits both what a player sends and what a player receives in a game day.
+- The world uses the place names in this document: the 12 consort palaces, the lanes, the Imperial Garden, the Emperor's palace, the Empress Dowager's palace, the Cold Palace, the Imperial Kitchen, the Physician's hall and the guard barracks.

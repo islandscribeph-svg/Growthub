@@ -7,6 +7,7 @@ import type { GameEvent } from '../events';
 import { PHASES, type Character, type CourtState, type Phase } from '../types';
 import { andThen, isIll, newDailyRecord, type RuleResult } from './core';
 import { payStipends } from './money';
+import { applySkippedRespects } from './relationships';
 
 /** The phase that follows this one. Night is followed by the next Morning. */
 export function nextPhase(phase: Phase): Phase {
@@ -28,6 +29,7 @@ export function nextPhase(phase: Phase): Phase {
 
 /**
  * Moves the court to its next phase.
+ * - Entering Day: the Morning is over, and ladies who skipped their respects pay for it.
  * - Entering Night: unspent energy is lost.
  * - Entering Morning: a new game day starts, yesterday's daily records are wiped, energy is
  *   restored and the stipend arrives.
@@ -45,6 +47,7 @@ export function advancePhase(state: CourtState): RuleResult {
     case 'night':
       return andThen(moved, loseUnspentEnergy);
     case 'day':
+      return andThen(moved, applySkippedRespects);
     case 'evening':
       return moved;
     default: {

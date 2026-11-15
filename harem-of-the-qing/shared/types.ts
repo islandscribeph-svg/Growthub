@@ -87,6 +87,9 @@ export type ActivitySpot = (typeof ACTIVITY_SPOTS)[number];
 
 export type GiftKind = 'homemade_dish' | 'homemade_sewn_item' | 'trinket' | 'fine_jewelry' | 'rare_treasure';
 
+/** The work a lady can sell through a eunuch. */
+export type SellableWork = 'sewing' | 'drawing';
+
 export type ShopItem =
   | 'poison_ingredients'
   | 'fertility_poison_ingredients'
@@ -115,6 +118,10 @@ export interface DailyRecord {
   readonly premiumCosmetics: boolean;
   /** Everyone she has already given a gift to today. Only the first gift to each counts. */
   readonly giftedTo: readonly CharacterId[];
+  /** Everyone she has already greeted today. */
+  readonly greeted: readonly CharacterId[];
+  /** How many pieces of her own work she has sold today. */
+  readonly workSold: number;
   readonly silverSentToPlayers: number;
   readonly silverReceivedFromPlayers: number;
 }
@@ -255,7 +262,7 @@ export interface Trial {
   readonly overturned: boolean;
 }
 
-export type LedgerReason = 'stipend' | 'purchase' | 'gift' | 'tip' | 'transfer';
+export type LedgerReason = 'stipend' | 'purchase' | 'gift' | 'tip' | 'transfer' | 'sale';
 
 /** One line of the silver history. Every purchase is logged. */
 export interface LedgerEntry {

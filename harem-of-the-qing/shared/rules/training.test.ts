@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIVITY_SPOT_RULES, CHILDBEARING, DOLL_UP, ENERGY, NOT_IN_THE_DOC, STAT, TRAINING } from '../balance';
+import { ACTIVITY_SPOT_RULES, CHILDBEARING, DOLL_UP, ENERGY, SPOT_ATTRIBUTE_GAIN, STAT, TRAINING } from '../balance';
 import { deepFreeze, eventsOfType, makeCourt, makeGuard, makeLady, rejectionReasons } from '../testing/fixtures';
 import { ACTIVITY_SPOTS, LADY_TALENTS, type ActivitySpot, type LadyTalent, type Phase } from '../types';
-import { dollUp, dollUpBonusFor, dollUpBonusToday, effectiveBeauty, spotAttributeGain, train, trainingGain } from './training';
+import { dollUp, dollUpBonusFor, dollUpBonusToday, effectiveBeauty, train, trainingGain } from './training';
 
 const SLOW_FROM = STAT.max - TRAINING.slowLastPoints;
 
@@ -218,15 +218,13 @@ describe('training at an activity spot', () => {
 });
 
 describe('the attribute a spot also raises', () => {
-  it('uses the normal number for normal rows and the small number for rows marked small', () => {
-    const numbers = { spotAttributeGain: 4, spotAttributeGainSmall: 1 };
-    expect(spotAttributeGain('normal', numbers)).toBe(4);
-    expect(spotAttributeGain('small', numbers)).toBe(1);
+  it('gives rows marked small less than the normal rows, and never nothing', () => {
+    expect(SPOT_ATTRIBUTE_GAIN.small).toBeGreaterThan(0);
+    expect(SPOT_ATTRIBUTE_GAIN.small).toBeLessThan(SPOT_ATTRIBUTE_GAIN.normal);
   });
 
-  it('is switched off while the doc gives no number for it', () => {
-    expect(spotAttributeGain('normal', { spotAttributeGain: null, spotAttributeGainSmall: null })).toBe(0);
-    expect(spotAttributeGain('small', { spotAttributeGain: null, spotAttributeGainSmall: null })).toBe(0);
+  it('with the starting values: 2 points, or 1 point where the table says small', () => {
+    expect(SPOT_ATTRIBUTE_GAIN).toEqual({ normal: 2, small: 1 });
   });
 
   it('is added to the right attribute at every spot, and to no other', () => {
@@ -236,7 +234,7 @@ describe('the attribute a spot also raises', () => {
       const after = train(makeCourt({ characters: [lan] }), { type: 'train', actorId: 'lan', spot, talent: firstTalentOf(spot) })
         .state.characters['lan'];
       if (after?.path !== 'lady') throw new Error('expected a lady');
-      const gain = spotAttributeGain(rule.attributeGain);
+      const gain = SPOT_ATTRIBUTE_GAIN[rule.attributeGain];
       expect(after.beauty).toBe(30 + (rule.alsoRaises === 'beauty' ? gain : 0));
       expect(after.intelligence).toBe(30 + (rule.alsoRaises === 'intelligence' ? gain : 0));
       expect(after.obedience).toBe(30 + (rule.alsoRaises === 'obedience' ? gain : 0));
@@ -248,11 +246,6 @@ describe('the attribute a spot also raises', () => {
     const after = train(makeCourt({ characters: [lan] }), { type: 'train', actorId: 'lan', spot: 'dressing_room' }).state
       .characters['lan'];
     expect(after?.beauty).toBe(STAT.max);
-  });
-
-  it('is still waiting for its numbers from the doc', () => {
-    expect(NOT_IN_THE_DOC.spotAttributeGain).toBeNull();
-    expect(NOT_IN_THE_DOC.spotAttributeGainSmall).toBeNull();
   });
 });
 

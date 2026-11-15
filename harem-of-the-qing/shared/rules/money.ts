@@ -5,8 +5,12 @@
 import {
   BRIBE,
   CHILDBEARING_RESTORATION,
+  ENERGY,
+  GIFT_QUALITY,
+  GUARD_STIPEND,
   HATED,
   SELLING,
+  SELLING_WORK,
   SERVANT,
   SHOP_PRICE,
   STIPEND,
@@ -14,13 +18,15 @@ import {
   TRANSFER,
 } from '../balance';
 import type { GameEvent } from '../events';
-import type { Character, CharacterId, CourtState, LedgerEntry, ServantId, ShopItem } from '../types';
+import type { Rng } from '../rng';
+import type { Character, CharacterId, CourtState, LedgerEntry, SellableWork, ServantId, ShopItem } from '../types';
 import {
   clamp,
   clampStat,
   getCharacter,
   isExiled,
   isIll,
+  isRightPhase,
   rankNumber,
   rejected,
   withCharacter,
@@ -61,10 +67,10 @@ export function receiveSilver(
   return withLedgerEntry(paid, { characterId, direction: 'in', amount, ...details });
 }
 
-/** The stipend a character is due this Morning. A lady in the Cold Palace receives none. */
+/** The stipend a character is due this Morning. None in the Cold Palace or at the frontier. */
 export function stipendFor(character: Character, day: number): number {
-  if (character.path !== 'lady' || isExiled(character, day)) return 0;
-  return STIPEND[character.rank];
+  if (isExiled(character, day)) return 0;
+  return character.path === 'lady' ? STIPEND[character.rank] : GUARD_STIPEND[character.rank];
 }
 
 /** "The stipend arrives each Morning", scaled by rank. */
@@ -271,4 +277,36 @@ export function giveSilver(state: CourtState, intent: GiveSilverIntent): RuleRes
     state: next,
     events: [{ type: 'silver_given', fromId: actor.id, toId: recipient.id, amount: intent.amount }],
   };
+}
+
+export interface SellWorkIntent {
+  readonly type: 'sell_work';
+  readonly actorId: CharacterId;
+  readonly work: SellableWork;
+}
+
+/**
+ * "Selling her own sewing or drawings through a eunuch: quality divided by 5, in taels."
+ * She makes one piece, which costs the energy of a training action, and its quality is rolled
+ * like a homemade gift. The eunuch takes a limited number of pieces a day.
+ */
+export function sellWork(state: CourtState, intent: SellWorkIntent, rng: Rng): RuleResult {
+  const actor = getCharacter(state, intent.actorId);
+  if (!actor) return rejected(state, intent.type, intent.actorId, 'unknown_character');
+  if (actor.path !== 'lady') return rejected(state, intent.type, actor.id, 'not_a_lady');
+  if (!isRightPhase(state, 'sell_work')) return rejected(state, intent.type, actor.id, 'wrong_phase');
+  if (isExiled(actor, state.day)) return rejected(state, intent.type, actor.id, 'in_cold_palace');
+  if (actor.today.workSold >= SELLING_WORK.salesPerDay) return rejected(state, intent.type, actor.id, 'already_sold_today');
+  if (actor.energy < ENERGY.training) return rejected(state, intent.type, actor.id, 'not_enough_energy');
+
+  const talent = actor.talents[SELLING_WORK.talent[intent.work]];
+  const quality = talent + rng.int(GIFT_QUALITY.rollMin, GIFT_QUALITY.rollMax);
+  const price = saleValue(quality);
+  const made = withCharacter(state, {
+    ...actor,
+    energy: actor.energy - ENERGY.training,
+    today: { ...actor.today, workSold: actor.today.workSold + 1 },
+  });
+  const sold = receiveSilver(made, actor.id, price, { reason: 'sale', item: intent.work, otherId: null, leavesTrail: false });
+  return { state: sold, events: [{ type: 'work_sold', characterId: actor.id, work: intent.work, quality, price }] };
 }

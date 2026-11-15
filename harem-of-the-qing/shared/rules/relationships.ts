@@ -3,7 +3,16 @@
  * section 5 table, friends, the hated state, and the averages for the status panel.
  * Section 5 of GAME_LOGIC.md.
  */
-import { ENERGY, HATED, MISTRESS_MIN_RANK, RELATIONSHIP, RELATIONSHIP_CHANGE, SERVANT } from '../balance';
+import {
+  ENERGY,
+  GREETING,
+  HATED,
+  MISTRESS_MIN_RANK,
+  RELATIONSHIP,
+  RELATIONSHIP_CHANGE,
+  SERVANT,
+  SKIPPED_RESPECTS,
+} from '../balance';
 import type { GameEvent, RelationshipCause } from '../events';
 import type { Rng } from '../rng';
 import {
@@ -18,6 +27,7 @@ import {
   allLadies,
   andThen,
   clamp,
+  clampStat,
   getCharacter,
   getLady,
   isExiled,
@@ -235,6 +245,47 @@ export function payRespects(state: CourtState, intent: PayRespectsIntent): RuleR
   );
 }
 
+/**
+ * The NPC routine "respects in the Morning": every NPC lady who has someone to bow to pays
+ * her respects. The server runs this once each Morning.
+ */
+export function npcsPayRespects(state: CourtState): RuleResult {
+  let result = unchanged(state);
+  if (!isRightPhase(state, 'pay_respects')) return result;
+  for (const lady of allLadies(state)) {
+    if (lady.controller.kind !== 'npc' || lady.today.paidRespects || !respectsGoTo(state, lady)) continue;
+    result = andThen(result, (current) => payRespects(current, { type: 'pay_respects', actorId: lady.id }));
+  }
+  return result;
+}
+
+/**
+ * When the Morning ends, a lady who had someone to bow to and did not loses a little Obedience
+ * and a little standing with her. A lady in the Cold Palace cannot attend and is not blamed.
+ */
+export function applySkippedRespects(state: CourtState): RuleResult {
+  let result = unchanged(state);
+  for (const lady of allLadies(state)) {
+    if (lady.today.paidRespects || isExiled(lady, state.day)) continue;
+    const target = respectsGoTo(state, lady);
+    if (!target) continue;
+    result = andThen(result, (current) => {
+      const latest = getLady(current, lady.id) ?? lady;
+      const obedience = clampStat(latest.obedience - SKIPPED_RESPECTS.obedienceLoss);
+      const slipped: RuleResult = {
+        state: withCharacter(current, { ...latest, obedience }),
+        events: [
+          { type: 'respects_skipped', characterId: lady.id, toId: target.id, obedienceFrom: latest.obedience, obedienceTo: obedience },
+        ],
+      };
+      return andThen(slipped, (next) =>
+        changeRelationship(next, lady.id, target.id, -SKIPPED_RESPECTS.relationshipLoss, 'skipped_morning_respects'),
+      );
+    });
+  }
+  return result;
+}
+
 export interface GreetIntent {
   readonly type: 'greet';
   readonly actorId: CharacterId;
@@ -248,10 +299,16 @@ export function greet(state: CourtState, intent: GreetIntent): RuleResult {
   if (intent.targetId === actor.id) return rejected(state, intent.type, actor.id, 'cannot_target_self');
   if (!hasRelationships(state, intent.targetId)) return rejected(state, intent.type, actor.id, 'unknown_recipient');
   if (!isRightPhase(state, 'greet')) return rejected(state, intent.type, actor.id, 'wrong_phase');
+  const alreadyGreeted = actor.today.greeted.filter((id) => id === intent.targetId).length;
+  if (alreadyGreeted >= GREETING.perPersonPerDay) return rejected(state, intent.type, actor.id, 'already_greeted_today');
   if (actor.energy < ENERGY.socializing) return rejected(state, intent.type, actor.id, 'not_enough_energy');
 
   const greeted: RuleResult = {
-    state: withCharacter(state, { ...actor, energy: actor.energy - ENERGY.socializing }),
+    state: withCharacter(state, {
+      ...actor,
+      energy: actor.energy - ENERGY.socializing,
+      today: { ...actor.today, greeted: [...actor.today.greeted, intent.targetId] },
+    }),
     events: [{ type: 'greeted', characterId: actor.id, targetId: intent.targetId }],
   };
   return andThen(greeted, (current) =>

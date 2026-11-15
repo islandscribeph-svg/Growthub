@@ -105,6 +105,8 @@ export function newDailyRecord(): DailyRecord {
     dollUpBonus: 0,
     premiumCosmetics: false,
     giftedTo: [],
+    greeted: [],
+    workSold: 0,
     silverSentToPlayers: 0,
     silverReceivedFromPlayers: 0,
   };

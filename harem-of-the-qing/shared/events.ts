@@ -8,6 +8,7 @@ import type {
   GiftKind,
   LadyTalent,
   Phase,
+  SellableWork,
   ServantId,
   ShopItem,
   TrainableAttribute,
@@ -37,10 +38,13 @@ export type RejectionReason =
   | 'not_ill'
   | 'childbearing_already_full'
   | 'already_bought_today'
+  | 'already_greeted_today'
+  | 'already_sold_today'
   | 'recipient_has_no_relationship_score';
 
 export type RelationshipCause =
   | 'morning_respects'
+  | 'skipped_morning_respects'
   | 'greeting'
   | 'gift'
   | 'help'
@@ -89,11 +93,25 @@ export type GameEvent =
       readonly cause: 'tip' | 'mistress_became_hated';
     }
   | { readonly type: 'respects_paid'; readonly characterId: CharacterId; readonly toId: CharacterId }
+  | {
+      readonly type: 'respects_skipped';
+      readonly characterId: CharacterId;
+      readonly toId: CharacterId;
+      readonly obedienceFrom: number;
+      readonly obedienceTo: number;
+    }
   | { readonly type: 'greeted'; readonly characterId: CharacterId; readonly targetId: CharacterId }
   | { readonly type: 'purchased'; readonly characterId: CharacterId; readonly item: ShopItem; readonly cost: number }
   | { readonly type: 'illness_cured'; readonly characterId: CharacterId }
   | { readonly type: 'childbearing_restored'; readonly characterId: CharacterId; readonly from: number; readonly to: number }
   | { readonly type: 'servant_tipped'; readonly characterId: CharacterId; readonly servantId: ServantId; readonly cost: number }
+  | {
+      readonly type: 'work_sold';
+      readonly characterId: CharacterId;
+      readonly work: SellableWork;
+      readonly quality: number;
+      readonly price: number;
+    }
   | { readonly type: 'silver_given'; readonly fromId: CharacterId; readonly toId: CharacterId; readonly amount: number }
   | {
       readonly type: 'gift_given';
