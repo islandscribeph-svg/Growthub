@@ -5,11 +5,14 @@
  */
 import type { Size } from '../../shared/geometry';
 
-/** The size of the game screen in pixels, before it is scaled to fit the window. */
+/** The size the game starts at, in pixels. The canvas then grows to fill the window. */
 export const VIEW_WIDTH = 800;
 export const VIEW_HEIGHT = 600;
 
-/** How much the map is magnified on screen. */
+/**
+ * How much the map is magnified. Two screen pixels per map pixel keeps the rooms readable
+ * on a phone and on a desktop; the camera shows more or less of the palace as the window changes.
+ */
 export const MAP_ZOOM = 2;
 
 /** Maps live in assets/maps. This one opens unless the address says ?map=another-name. */

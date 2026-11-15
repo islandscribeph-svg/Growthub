@@ -68,6 +68,7 @@ export class PalaceUi {
   /** Called when the menu closes, however it closes. */
   onMenuClosed: (() => void) | null = null;
 
+  private readonly stack = el('div', 'pal-stack');
   private readonly hud = el('section', 'pal-hud', [], { 'aria-label': 'Your day' });
   private readonly notices = el('div', 'pal-notices', [], { 'aria-live': 'polite' });
   private readonly menu = el('section', 'pal-menu', [], { role: 'dialog', hidden: true });
@@ -75,13 +76,19 @@ export class PalaceUi {
   private menuStack: MenuBuilder[] = [];
   private menuOptions: readonly MenuOption[] = [];
   private result: readonly LogLine[] = [];
+  /** The phone whereabouts panel stays as she left it when the day card is redrawn. */
+  private whereaboutsOpen = false;
+  /** A phone upright is narrow; a phone on its side is short. Both use the compact day card. */
+  private readonly narrowQuery = window.matchMedia('(max-width: 760px), (max-height: 500px)');
 
   constructor(
     root: HTMLElement,
     private readonly session: PalaceSession,
   ) {
-    root.append(this.hud, this.notices, this.menu, this.journal);
+    this.stack.append(this.hud, this.notices);
+    root.append(this.stack, this.menu, this.journal);
     window.addEventListener('keydown', (event) => this.onKey(event));
+    this.narrowQuery.addEventListener('change', () => this.renderHud());
     this.refresh();
   }
 
@@ -231,24 +238,43 @@ export class PalaceUi {
       Array.from({ length: ENERGY.perDay }, (_unused, index) => el('i', index < you.energy ? 'is-full' : '')),
       { 'aria-hidden': 'true' },
     );
-    const people = el(
+    const people = this.whereaboutsList();
+    const hint = el('p', 'pal-hud__hint', [PHASE_HINT[court.phase]]);
+    const clock = el('div', 'pal-hud__clock', [
+      el('strong', '', [`Day ${court.day} · ${PHASE_NAME[court.phase]}`]),
+      button('pal-hud__next', [`End the ${PHASE_NAME[court.phase]} →`], () => this.endPhase()),
+    ]);
+    const purse = el('div', 'pal-hud__purse', [
+      el('span', '', ['Energy ', pips, el('b', '', [` ${you.energy}`])]),
+      el('span', '', ['Silver ', el('b', '', [`${you.silver}`]), ' taels']),
+    ]);
+    const here = el('p', 'pal-hud__place', [
+      place ? `You are ${place.kind === 'gate' ? 'at' : 'in'} ${place.name}.` : 'You are outside.',
+    ]);
+    const journalButton = button('pal-hud__journal', [this.journal.hidden ? 'Open journal' : 'Close journal'], () =>
+      this.toggleJournal(),
+    );
+
+    if (this.narrowQuery.matches) {
+      const summary = el('summary', '', ['Where everyone is']);
+      summary.tabIndex = -1;
+      const panel = el('details', 'pal-hud__whereabouts', [summary, el('div', 'pal-hud__whereabouts-body', [hint, people])]);
+      panel.open = this.whereaboutsOpen;
+      panel.addEventListener('toggle', () => {
+        this.whereaboutsOpen = panel.open;
+      });
+      this.hud.replaceChildren(clock, purse, here, panel, journalButton);
+      return;
+    }
+
+    this.hud.replaceChildren(clock, hint, purse, here, people, journalButton);
+  }
+
+  private whereaboutsList(): HTMLElement {
+    return el(
       'ul',
       'pal-hud__people',
       this.peopleOfThePalace().map(([name, where]) => el('li', '', [el('span', '', [name]), el('em', '', [where])])),
-    );
-    this.hud.replaceChildren(
-      el('div', 'pal-hud__clock', [
-        el('strong', '', [`Day ${court.day} · ${PHASE_NAME[court.phase]}`]),
-        button('pal-hud__next', [`End the ${PHASE_NAME[court.phase]} →`], () => this.endPhase()),
-      ]),
-      el('p', 'pal-hud__hint', [PHASE_HINT[court.phase]]),
-      el('div', 'pal-hud__purse', [
-        el('span', '', ['Energy ', pips, el('b', '', [` ${you.energy}`])]),
-        el('span', '', ['Silver ', el('b', '', [`${you.silver}`]), ' taels']),
-      ]),
-      el('p', 'pal-hud__place', [place ? `You are ${place.kind === 'gate' ? 'at' : 'in'} ${place.name}.` : 'You are outside.']),
-      people,
-      button('pal-hud__journal', [this.journal.hidden ? 'Open journal' : 'Close journal'], () => this.toggleJournal()),
     );
   }
 
@@ -294,6 +320,11 @@ export class PalaceUi {
       'ul',
       'pal-stats pal-stats--two',
       LADY_TALENTS.map((talent) => stat(TALENT_NAME[talent], `${you.talents[talent]}`)),
+    );
+    const whereabouts = el(
+      'ul',
+      'pal-stats',
+      this.peopleOfThePalace().map(([name, where]) => stat(name, where)),
     );
     const relationships = el(
       'ul',
@@ -350,6 +381,8 @@ export class PalaceUi {
         `Everyone starts at ${RELATIONSHIP.strangers}. At ${PRIVATE_ROOM.welcomeFromRelationship} a lady welcomes you into her room.`,
       ]),
       relationships,
+      el('h3', '', ['Where everyone is']),
+      whereabouts,
       el('h3', '', ['Test tools (not part of the game)']),
       tools,
       el('h3', '', ['What happened']),

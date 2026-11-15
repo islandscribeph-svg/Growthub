@@ -22,6 +22,11 @@
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
 }
 
+.pal-menu,
+.pal-journal {
+  z-index: 24;
+}
+
 .pal-hud button,
 .pal-menu button,
 .pal-journal button {
@@ -44,16 +49,34 @@
   list-style: none;
 }
 
-/* The day card, top left. */
+/* The day card and the toasts under it, top left, inside the safe area. */
 
-.pal-hud {
+.pal-stack {
+  position: fixed;
+  z-index: 22;
   top: max(10px, env(safe-area-inset-top));
   left: max(10px, env(safe-area-inset-left));
-  width: 276px;
+  width: min(276px, calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
+  pointer-events: none;
+}
+
+.pal-hud {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: auto;
   padding: 10px 12px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 7px;
+  pointer-events: auto;
+  max-height: min(70dvh, 100%);
+  overflow-y: auto;
 }
 
 .pal-hud__clock {
@@ -142,16 +165,52 @@
   text-align: right;
 }
 
-/* Notices, top centre. */
+/* On a phone the whereabouts list is one tap away, so the day card stays a short strip. */
+
+.pal-hud__whereabouts {
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+
+.pal-hud__whereabouts summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pal-hud__whereabouts summary::-webkit-details-marker {
+  display: none;
+}
+
+.pal-hud__whereabouts summary::after {
+  content: '▸';
+}
+
+.pal-hud__whereabouts[open] summary::after {
+  content: '▾';
+}
+
+.pal-hud__whereabouts-body {
+  display: grid;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+/* Toasts sit under the day card, away from the player in the middle of the screen. */
 
 .pal-notices {
-  position: fixed;
-  z-index: 21;
-  top: max(10px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(440px, calc(100vw - 620px));
-  min-width: 260px;
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  width: auto;
+  min-width: 0;
   display: grid;
   gap: 6px;
   pointer-events: none;
@@ -418,28 +477,27 @@
   white-space: nowrap;
 }
 
-/* A phone held upright: the day card becomes a strip under the page link, and the menu and journal take the full width. */
-@media (max-width: 760px) {
+/* A phone, either way up: the day card is a strip under the page link, and the menu and journal take the width between the safe areas. */
+@media (max-width: 760px), (max-height: 500px) {
+  .pal-stack {
+    top: calc(max(8px, env(safe-area-inset-top)) + 40px);
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    width: auto;
+  }
+
   .pal-hud {
-    top: calc(max(10px, env(safe-area-inset-top)) + 42px);
-    width: calc(100vw - 20px);
     padding: 8px 10px;
     gap: 5px;
   }
 
-  .pal-hud .pal-hud__hint,
-  .pal-hud .pal-hud__people {
-    display: none;
-  }
-
-  .pal-notices {
-    top: auto;
-    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 250px);
-    width: calc(100vw - 20px);
-  }
-
   .pal-menu {
-    max-height: 70vh;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    transform: none;
+    width: auto;
+    max-height: 70dvh;
   }
 
   .pal-option {
@@ -447,7 +505,10 @@
   }
 
   .pal-journal {
-    top: max(10px, env(safe-area-inset-top));
-    width: calc(100vw - 20px);
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
   }
 }

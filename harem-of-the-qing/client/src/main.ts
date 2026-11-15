@@ -51,8 +51,9 @@ async function start(): Promise<void> {
     height: VIEW_HEIGHT,
     backgroundColor: '#14100e',
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      // Fill the window, including a phone in either orientation, instead of letterboxing 800×600.
+      mode: Phaser.Scale.RESIZE,
+      autoCenter: Phaser.Scale.NO_CENTER,
     },
     scene: [scene],
   });

@@ -70,9 +70,15 @@ export class AreaScene extends Phaser.Scene {
     }
 
     const camera = this.cameras.main;
-    camera.setZoom(MAP_ZOOM);
-    camera.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+    const frameCamera = (): void => {
+      camera.setZoom(MAP_ZOOM);
+      camera.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+      // On a short screen the day card covers the top, so the player sits a little below centre.
+      camera.setFollowOffset(0, this.scale.height <= 520 ? 36 : 0);
+    };
     camera.startFollow(this.player, true);
+    frameCamera();
+    this.scale.on(Phaser.Scale.Events.RESIZE, frameCamera);
 
     this.deps.hud.onPromptTap = () => this.interact('tap');
     this.deps.events.onEvent((event) => {

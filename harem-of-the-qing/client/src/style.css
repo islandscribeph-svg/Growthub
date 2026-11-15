@@ -2,6 +2,7 @@ html,
 body {
   margin: 0;
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
   background: #14100e;
   font-family: system-ui, sans-serif;
@@ -9,8 +10,10 @@ body {
 }
 
 #game {
-  width: 100vw;
-  height: 100vh;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   height: 100dvh;
 }
 
@@ -21,8 +24,9 @@ body {
 
 .touch-pad {
   position: fixed;
-  left: max(16px, env(safe-area-inset-left));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 18;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(12px, env(safe-area-inset-bottom));
   width: 156px;
   height: 156px;
   display: grid;
@@ -87,6 +91,7 @@ body {
 
 .zone-prompt {
   position: fixed;
+  z-index: 18;
   left: 50%;
   bottom: max(24px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
@@ -143,8 +148,9 @@ body {
 
 .page-link {
   position: fixed;
-  top: max(10px, env(safe-area-inset-top));
-  right: max(10px, env(safe-area-inset-right));
+  z-index: 16;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
   padding: 7px 12px;
   border: 1px solid rgba(255, 209, 102, 0.7);
   border-radius: 999px;
@@ -159,9 +165,20 @@ body {
   background: rgba(70, 50, 20, 0.95);
 }
 
-/* On a narrow phone the prompt would sit on top of the direction pad, so it moves above it. */
-@media (max-width: 560px) {
+/* On a phone the prompt sits beside the direction pad, clear of the player in the middle and of the home bar. */
+@media (max-width: 760px), (max-height: 500px) {
   .zone-prompt {
-    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 176px);
+    left: calc(max(12px, env(safe-area-inset-left)) + 168px);
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(48px, calc(env(safe-area-inset-bottom) + 48px));
+    transform: none;
+    max-width: none;
+    width: auto;
+    padding: 8px 12px;
+  }
+
+  .touch-pad {
+    width: 148px;
+    height: 148px;
   }
 }
