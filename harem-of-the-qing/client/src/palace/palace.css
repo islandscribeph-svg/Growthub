@@ -202,18 +202,25 @@
   padding-top: 4px;
 }
 
-/* A sideways or short phone: the open list scrolls inside the space above the direction pad. */
+/* A sideways or short phone: the open list is a sheet on the right, opposite the direction pad. */
 @media (max-height: 500px) {
   .pal-hud__whereabouts-body {
-    max-height: max(
-      0px,
-      calc(
-        100dvh - max(8px, env(safe-area-inset-top)) - 40px - 148px - max(12px, env(safe-area-inset-bottom)) - 8px -
-          11.5rem
-      )
-    );
+    position: fixed;
+    z-index: 23;
+    top: calc(max(8px, env(safe-area-inset-top)) + 40px);
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(max(48px, env(safe-area-inset-bottom) + 48px) + 156px);
+    left: auto;
+    width: min(260px, calc(100vw - 176px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-height: none;
+    margin: 0;
+    padding: 10px 12px;
     overflow-y: auto;
     overscroll-behavior: contain;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(24, 16, 13, 0.94);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -525,5 +532,29 @@
     bottom: max(8px, env(safe-area-inset-bottom));
     left: max(8px, env(safe-area-inset-left));
     width: auto;
+  }
+}
+
+/* Sideways only: the day card keeps the left. Notices sit on the right, above the action button and clear of the pad. */
+@media (max-height: 500px) {
+  .pal-stack {
+    right: auto;
+    width: min(460px, calc(100vw - 276px - env(safe-area-inset-right)));
+  }
+
+  .pal-notices {
+    position: fixed;
+    z-index: 25;
+    top: auto;
+    left: auto;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(max(48px, env(safe-area-inset-bottom) + 48px) + 76px);
+    width: min(250px, calc(100vw - 176px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-height: 72px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
+    transform: none;
   }
 }

@@ -98,8 +98,16 @@ export class PalaceUi {
       'pointerdown',
       (event) => {
         const target = event.target;
+        if (!(target instanceof Node)) return;
         const pad = document.getElementById('touch-pad');
-        if (target instanceof Node && pad?.contains(target)) this.collapseWhereaboutsForPad();
+        if (pad?.contains(target)) {
+          this.collapseWhereaboutsForPad();
+          return;
+        }
+        if (!this.shortQuery.matches || !this.whereaboutsOpen) return;
+        const panel = this.hud.querySelector('.pal-hud__whereabouts');
+        if (panel?.contains(target)) return;
+        this.collapseWhereabouts();
       },
       true,
     );
@@ -308,10 +316,11 @@ export class PalaceUi {
   }
 
   /**
-   * An open whereabouts list must stop above the direction pad. On a tall phone there is room,
-   * so the list is left alone. On a short one it scrolls, or folds away when a line would not fit.
+   * On a tall phone the open list stays in the day card, scrolled if it would meet the pad.
+   * On a short phone the list is the side sheet, and this leaves it alone.
    */
   private keepWhereaboutsOffThePad(): void {
+    if (this.shortQuery.matches) return;
     const panel = this.hud.querySelector('.pal-hud__whereabouts');
     const pad = document.getElementById('touch-pad');
     if (!(panel instanceof HTMLDetailsElement) || !panel.open || !(pad instanceof HTMLElement)) return;
@@ -319,19 +328,11 @@ export class PalaceUi {
     if (!(body instanceof HTMLElement)) return;
 
     body.style.maxHeight = '';
-    const gap = 8;
-    const padTop = pad.getBoundingClientRect().top - gap;
-    const fitted = body.getBoundingClientRect().height;
-    // A sideways phone has almost no room under the day card. Fold the list rather than
-    // paint an empty open panel over the direction pad.
-    if (this.shortQuery.matches && fitted < 36) {
-      this.collapseWhereabouts();
-      return;
-    }
+    const padTop = pad.getBoundingClientRect().top - 8;
     const overflow = this.hud.getBoundingClientRect().bottom - padTop;
     if (overflow <= 0) return;
 
-    const next = Math.floor(fitted - overflow);
+    const next = Math.floor(body.getBoundingClientRect().height - overflow);
     if (next < 36) {
       this.collapseWhereabouts();
       return;
