@@ -192,6 +192,54 @@ export function describeEvent(event: GameEvent, court: CourtState): LogLine | nu
       if (event.halved) parts.push('Worth half, because the recipient is ranked higher.');
       return { text: parts.join(' '), tone: 'plain', about: [event.giverId, event.recipientId] };
     }
+    case 'place_entered':
+      return null;
+    case 'walked_in_on': {
+      const who = object(court, event.onId);
+      switch (event.outcome) {
+        case 'charged':
+          return {
+            text: `${subject(court, event.characterId)} walked in on ${who} in her own room.`,
+            tone: 'bad',
+            about: [event.characterId, event.onId],
+          };
+        case 'welcome':
+          return {
+            text: `${subject(court, event.characterId)} stepped into ${who}'s room and found a welcome there.`,
+            tone: 'good',
+            about: [event.characterId, event.onId],
+          };
+        case 'already_counted':
+          return {
+            text: `${subject(court, event.characterId)} walked in on ${who} again. It has already cost its price today.`,
+            tone: 'plain',
+            about: [event.characterId, event.onId],
+          };
+        default: {
+          const unknown: never = event.outcome;
+          throw new Error(`Unknown outcome: ${String(unknown)}`);
+        }
+      }
+    }
+    case 'whereabouts_changed': {
+      const place = event.to === null ? null : court.places[event.to];
+      const name = nameOf(court, event.id);
+      const who = name.charAt(0).toUpperCase() + name.slice(1);
+      return {
+        text: place ? `${who} went to ${place.name}.` : `${who} left the palace grounds.`,
+        tone: 'plain',
+        about: [event.id],
+      };
+    }
+    case 'maid_sent': {
+      const maid = nameOf(court, event.servantId);
+      const errand = { gift: 'with a gift', silver: 'with silver', shopping: 'out to buy something' }[event.errand];
+      return {
+        text: `${subject(court, event.characterId)} sent ${maid} ${errand}.`,
+        tone: 'plain',
+        about: [event.characterId],
+      };
+    }
     default: {
       const unknown: never = event;
       throw new Error(`Unknown event: ${JSON.stringify(unknown)}`);

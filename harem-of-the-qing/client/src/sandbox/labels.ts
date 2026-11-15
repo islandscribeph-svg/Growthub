@@ -123,6 +123,7 @@ export const CAUSE_TEXT: Readonly<Record<RelationshipCause, string>> = {
   help: 'help with a task',
   warning_of_a_plot: 'a warning of a plot',
   used_her_activity_spot: 'used her activity spot uninvited',
+  walked_in_on_her: 'walked in on her in her own room',
   bore_witness_against_her: 'bore witness against her',
   bore_witness_against_her_friend: 'bore witness against her friend',
   caught_sabotaging_her: 'caught sabotaging her',
@@ -156,4 +157,10 @@ export const REJECTION_TEXT: Readonly<Record<RejectionReason, string>> = {
   already_greeted_today: 'you have already greeted this person today.',
   already_sold_today: 'the eunuch has already taken a piece from you today.',
   recipient_has_no_relationship_score: 'that person has no relationship score.',
+  unknown_place: 'that place is not on the map.',
+  not_in_the_right_place: 'you are not in the right place for this.',
+  not_with_that_person: 'you are not standing with that person.',
+  she_is_in_her_own_room: 'she is in her own room and does not wish to be disturbed.',
+  no_servant_here: 'there is no servant here to gossip with.',
+  maid_not_here: 'your maid is not with you.',
 };

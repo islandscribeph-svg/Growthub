@@ -8,6 +8,7 @@
 export type CharacterId = string;
 export type ServantId = string;
 export type PalaceId = string;
+export type PlaceId = string;
 export type ChildId = string;
 export type ClueId = string;
 export type SchemeId = string;
@@ -124,6 +125,8 @@ export interface DailyRecord {
   readonly workSold: number;
   readonly silverSentToPlayers: number;
   readonly silverReceivedFromPlayers: number;
+  /** Every lady she has already walked in on today, in that lady's own room. */
+  readonly walkedInOn: readonly CharacterId[];
 }
 
 export interface Inventory {
@@ -190,6 +193,28 @@ export interface Servant {
 export interface Palace {
   readonly id: PalaceId;
   readonly name: string;
+}
+
+/**
+ * - main_hall: where the palace mistress receives the palace.
+ * - private_room: one lady's own room.
+ * - courtyard: the open ground of the palace.
+ * - workroom: a room for an activity, such as the study or the kitchen.
+ * - servants_quarters: where the palace staff sleep.
+ * - gate: the way out of the palace.
+ */
+export type PlaceKind = 'main_hall' | 'private_room' | 'courtyard' | 'workroom' | 'servants_quarters' | 'gate';
+
+/** One room or yard of a palace. A character is in at most one place at a time. */
+export interface Place {
+  readonly id: PlaceId;
+  readonly name: string;
+  readonly palaceId: PalaceId;
+  readonly kind: PlaceKind;
+  /** The lady whose room this is. Null for every place that is not a private room. */
+  readonly ownerId: CharacterId | null;
+  /** The activity spots found here. */
+  readonly spots: readonly ActivitySpot[];
 }
 
 export interface Child {
@@ -289,6 +314,12 @@ export interface CourtState {
   readonly characters: Readonly<Record<CharacterId, Character>>;
   readonly servants: Readonly<Record<ServantId, Servant>>;
   readonly palaces: Readonly<Record<PalaceId, Palace>>;
+  readonly places: Readonly<Record<PlaceId, Place>>;
+  /**
+   * Where each character and servant is standing, by their id. Anyone without an entry is
+   * somewhere out of reach: outside the palaces the court has mapped, or not yet placed.
+   */
+  readonly whereabouts: Readonly<Record<string, PlaceId>>;
   readonly children: Readonly<Record<ChildId, Child>>;
   /** Keyed by the two ids in alphabetical order. See rules/relationships.ts. */
   readonly relationships: Readonly<Record<string, Relationship>>;

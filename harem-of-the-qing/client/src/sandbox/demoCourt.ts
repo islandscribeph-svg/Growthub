@@ -25,7 +25,7 @@ export const YOU: CharacterId = 'you';
 export const MAID_ID = 'xiu';
 export const REGULAR_ID: CharacterId = 'mei';
 
-const HOME = 'home';
+export const HOME = 'home';
 const NEIGHBOUR = 'neighbour';
 const EMPRESS_PALACE = 'empress_palace';
 
@@ -142,6 +142,9 @@ export function createDemoCourt(): CourtState {
       [NEIGHBOUR]: { id: NEIGHBOUR, name: 'A neighbouring palace' },
       [EMPRESS_PALACE]: { id: EMPRESS_PALACE, name: "The Empress's palace" },
     },
+    // The sandbox has no map. The playable palace adds its rooms in client/src/palace.
+    places: {},
+    whereabouts: {},
     children: {},
     relationships: {},
     clues: {},

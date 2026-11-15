@@ -529,9 +529,12 @@ export const GREETING = {
 export const SELLING_WORK: {
   readonly salesPerDay: number;
   readonly talent: Readonly<Record<SellableWork, LadyTalent>>;
+  /** 13.11 The activity spot where each kind of work is made. */
+  readonly madeAt: Readonly<Record<SellableWork, ActivitySpot>>;
 } = {
   salesPerDay: 1,
   talent: { sewing: 'sewing', drawing: 'drawing' },
+  madeAt: { sewing: 'sewing_room', drawing: 'study' },
 };
 
 /** 13.6 Guards are paid like a lady of the same rank number. None while posted to the frontier. */
@@ -564,4 +567,21 @@ export const STARTING = {
   maidLoyalty: 50,
   guardLoyalty: 30,
   martialSkill: 100,
+} as const;
+
+/**
+ * 13.10 Walking into another lady's own room while she is in it. The same size as using her
+ * activity spot uninvited (section 3), and waived on the same terms.
+ */
+export const PRIVATE_ROOM = {
+  relationshipLoss: STEPPING_ON_TOES.relationshipLoss,
+  /** At this relationship or higher she is welcome: no loss, and she may speak to her there. */
+  welcomeFromRelationship: STEPPING_ON_TOES.safeFromRelationship,
+  /** It counts once per lady per game day, however often she walks in and out. */
+  lossesPerLadyPerDay: 1,
+} as const;
+
+/** 13.12 How many times in a phase the court's NPCs and servants move to another of their usual places. */
+export const WHEREABOUTS = {
+  movesPerPhase: 3,
 } as const;

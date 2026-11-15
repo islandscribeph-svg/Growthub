@@ -16,6 +16,8 @@ import type {
   Lady,
   Palace,
   Phase,
+  Place,
+  PlaceId,
   Relationship,
   Servant,
 } from '../types';
@@ -121,6 +123,20 @@ export interface CourtParts {
   readonly children?: readonly Child[];
   /** Relationship scores to start with, as [one id, the other id, score]. */
   readonly relationships?: readonly (readonly [CharacterId, CharacterId, number])[];
+  readonly places?: readonly Place[];
+  /** Who starts where, as [character or servant id, place id]. */
+  readonly whereabouts?: readonly (readonly [string, PlaceId])[];
+}
+
+export function makePlace(overrides: Partial<Place> & { id: PlaceId }): Place {
+  return {
+    name: overrides.id,
+    palaceId: HOME_PALACE,
+    kind: 'workroom',
+    ownerId: null,
+    spots: [],
+    ...overrides,
+  };
 }
 
 export function makeCourt(parts: CourtParts = {}): CourtState {
@@ -138,6 +154,8 @@ export function makeCourt(parts: CourtParts = {}): CourtState {
     characters: Object.fromEntries(characters.map((character) => [character.id, character])),
     servants: Object.fromEntries((parts.servants ?? []).map((servant) => [servant.id, servant])),
     palaces: Object.fromEntries(palaces.map((palace) => [palace.id, palace])),
+    places: Object.fromEntries((parts.places ?? []).map((place) => [place.id, place])),
+    whereabouts: Object.fromEntries(parts.whereabouts ?? []),
     children: Object.fromEntries((parts.children ?? []).map((child) => [child.id, child])),
     relationships,
     clues: {},

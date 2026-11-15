@@ -8,6 +8,7 @@ import type {
   GiftKind,
   LadyTalent,
   Phase,
+  PlaceId,
   SellableWork,
   ServantId,
   ShopItem,
@@ -40,7 +41,13 @@ export type RejectionReason =
   | 'already_bought_today'
   | 'already_greeted_today'
   | 'already_sold_today'
-  | 'recipient_has_no_relationship_score';
+  | 'recipient_has_no_relationship_score'
+  | 'unknown_place'
+  | 'not_in_the_right_place'
+  | 'not_with_that_person'
+  | 'she_is_in_her_own_room'
+  | 'no_servant_here'
+  | 'maid_not_here';
 
 export type RelationshipCause =
   | 'morning_respects'
@@ -50,6 +57,7 @@ export type RelationshipCause =
   | 'help'
   | 'warning_of_a_plot'
   | 'used_her_activity_spot'
+  | 'walked_in_on_her'
   | 'bore_witness_against_her'
   | 'bore_witness_against_her_friend'
   | 'caught_sabotaging_her'
@@ -100,6 +108,32 @@ export type GameEvent =
       readonly obedienceFrom: number;
       readonly obedienceTo: number;
     }
+  | {
+      readonly type: 'place_entered';
+      readonly characterId: CharacterId;
+      /** Null when she stepped out of every mapped place. */
+      readonly placeId: PlaceId | null;
+    }
+  | {
+      /** She walked into another lady's own room while that lady was in it. */
+      readonly type: 'walked_in_on';
+      readonly characterId: CharacterId;
+      readonly onId: CharacterId;
+      readonly placeId: PlaceId;
+      /**
+       * - charged: it cost her relationship with that lady.
+       * - welcome: they are close enough, or she outranks her, so it cost nothing.
+       * - already_counted: it had already cost her today, so it cost nothing more.
+       */
+      readonly outcome: 'charged' | 'welcome' | 'already_counted';
+    }
+  | {
+      /** An NPC or a servant moved to another of their usual places. Null: they left the mapped places. */
+      readonly type: 'whereabouts_changed';
+      readonly id: string;
+      readonly from: PlaceId | null;
+      readonly to: PlaceId | null;
+    }
   | { readonly type: 'greeted'; readonly characterId: CharacterId; readonly targetId: CharacterId }
   | { readonly type: 'purchased'; readonly characterId: CharacterId; readonly item: ShopItem; readonly cost: number }
   | { readonly type: 'illness_cured'; readonly characterId: CharacterId }
@@ -127,6 +161,13 @@ export type GameEvent =
       /** True when the gift was worth half because the recipient outranks the giver. */
       readonly halved: boolean;
       readonly relationshipChange: number;
+    }
+  | {
+      /** Her maid carried a gift or silver for her, or went out to buy something. */
+      readonly type: 'maid_sent';
+      readonly characterId: CharacterId;
+      readonly servantId: ServantId;
+      readonly errand: 'gift' | 'silver' | 'shopping';
     };
 
 export type GameEventType = GameEvent['type'];

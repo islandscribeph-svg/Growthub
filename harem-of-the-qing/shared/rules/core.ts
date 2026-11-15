@@ -109,6 +109,7 @@ export function newDailyRecord(): DailyRecord {
     workSold: 0,
     silverSentToPlayers: 0,
     silverReceivedFromPlayers: 0,
+    walkedInOn: [],
   };
 }
 

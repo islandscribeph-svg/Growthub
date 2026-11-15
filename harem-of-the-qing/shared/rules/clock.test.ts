@@ -150,6 +150,7 @@ describe('the daily records', () => {
         workSold: 1,
         silverSentToPlayers: 20,
         silverReceivedFromPlayers: 30,
+        walkedInOn: ['mei'],
       },
     });
     const maid = makeMaid({ id: 'maid', servesId: 'lan', loyaltyFromTipsToday: 6 });
@@ -163,6 +164,7 @@ describe('the daily records', () => {
       workSold: 0,
       silverSentToPlayers: 0,
       silverReceivedFromPlayers: 0,
+      walkedInOn: [],
     });
     expect(result.state.servants['maid']?.loyaltyFromTipsToday).toBe(0);
   });
