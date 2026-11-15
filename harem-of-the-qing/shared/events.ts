@@ -36,6 +36,7 @@ export type RejectionReason =
   | 'transfer_cap_reached'
   | 'not_ill'
   | 'childbearing_already_full'
+  | 'already_bought_today'
   | 'recipient_has_no_relationship_score';
 
 export type RelationshipCause =

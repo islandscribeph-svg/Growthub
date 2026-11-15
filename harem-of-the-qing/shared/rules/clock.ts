@@ -6,6 +6,7 @@ import { CLOCK, ENERGY, HOURS_PER_REAL_DAY, MS_PER_HOUR } from '../balance';
 import type { GameEvent } from '../events';
 import { PHASES, type Character, type CourtState, type Phase } from '../types';
 import { andThen, isIll, newDailyRecord, type RuleResult } from './core';
+import { payStipends } from './money';
 
 /** The phase that follows this one. Night is followed by the next Morning. */
 export function nextPhase(phase: Phase): Phase {
@@ -28,7 +29,8 @@ export function nextPhase(phase: Phase): Phase {
 /**
  * Moves the court to its next phase.
  * - Entering Night: unspent energy is lost.
- * - Entering Morning: a new game day starts, yesterday's daily records are wiped and energy is restored.
+ * - Entering Morning: a new game day starts, yesterday's daily records are wiped, energy is
+ *   restored and the stipend arrives.
  */
 export function advancePhase(state: CourtState): RuleResult {
   const phase = nextPhase(state.phase);
@@ -39,7 +41,7 @@ export function advancePhase(state: CourtState): RuleResult {
   };
   switch (phase) {
     case 'morning':
-      return andThen(moved, startDay);
+      return andThen(andThen(moved, startDay), payStipends);
     case 'night':
       return andThen(moved, loseUnspentEnergy);
     case 'day':
