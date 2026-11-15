@@ -11,7 +11,7 @@ import {
 } from '../balance';
 import { createRng } from '../rng';
 import { deepFreeze, eventsOfType, makeLady, rejectionReasons } from '../testing/fixtures';
-import { BO, COOK, LAN, MAID, MEI, YU, makePalaceCourt, type PalaceParts } from '../testing/palaceFixture';
+import { BO, COOK, EUNUCH, LAN, MAID, MEI, YU, makePalaceCourt, type PalaceParts } from '../testing/palaceFixture';
 import type { CourtState } from '../types';
 import { act, maidWith, whyCannotApproach, whyCannotTrainHere, type CourtIntent } from './act';
 import { relationshipBetween } from './relationships';
@@ -157,18 +157,33 @@ describe('her maid carries gifts and silver, and runs to the shops', () => {
 });
 
 describe('training happens at the spot', () => {
-  it('trains cooking in the kitchen, and nowhere else', () => {
+  it('trains cooking in the kitchen alongside the cook, and nowhere else', () => {
     const cook: CourtIntent = { type: 'train', actorId: LAN, spot: 'kitchen' };
-    const { result } = run({ whereabouts: [[LAN, 'kitchen']] }, cook);
+    const { result } = run({ whereabouts: [[LAN, 'kitchen'], [COOK, 'kitchen']] }, cook);
     expect(eventsOfType(result.events, 'trained')[0]?.talent).toBe('cooking');
-    expectRefused({ whereabouts: [[LAN, 'yard']] }, cook, 'not_in_the_right_place');
+    expectRefused({ whereabouts: [[LAN, 'yard'], [COOK, 'yard']] }, cook, 'not_in_the_right_place');
     expectRefused({}, cook, 'not_in_the_right_place');
   });
 
-  it('does the courtyard chores in the courtyard', () => {
+  it('cannot train cooking while the cook is away, even with another servant in the kitchen', () => {
+    const cook: CourtIntent = { type: 'train', actorId: LAN, spot: 'kitchen' };
+    expectRefused({ whereabouts: [[LAN, 'kitchen']] }, cook, 'no_servant_here');
+    expectRefused({ whereabouts: [[LAN, 'kitchen'], [COOK, 'quarters']] }, cook, 'no_servant_here');
+    expectRefused({ whereabouts: [[LAN, 'kitchen'], [EUNUCH, 'kitchen'], [MAID, 'kitchen']] }, cook, 'no_servant_here');
+  });
+
+  it('does the courtyard chores in the courtyard alongside the eunuch', () => {
     const chores: CourtIntent = { type: 'train', actorId: LAN, spot: 'courtyard_chores' };
-    expect(eventsOfType(run({ whereabouts: [[LAN, 'yard']] }, chores).result.events, 'trained')).toHaveLength(1);
-    expectRefused({ whereabouts: [[LAN, 'study']] }, chores, 'not_in_the_right_place');
+    const withEunuch = run({ whereabouts: [[LAN, 'yard'], [EUNUCH, 'yard']] }, chores);
+    expect(eventsOfType(withEunuch.result.events, 'trained')).toHaveLength(1);
+    expectRefused({ whereabouts: [[LAN, 'study'], [EUNUCH, 'study']] }, chores, 'not_in_the_right_place');
+    expectRefused({ whereabouts: [[LAN, 'yard']] }, chores, 'no_servant_here');
+    expectRefused({ whereabouts: [[LAN, 'yard'], [COOK, 'yard']] }, chores, 'no_servant_here');
+  });
+
+  it('needs no servant for the spots a lady works at alone', () => {
+    const read: CourtIntent = { type: 'train', actorId: LAN, spot: 'study', talent: 'poetry' };
+    expect(eventsOfType(run({ whereabouts: [[LAN, 'study']] }, read).result.events, 'trained')).toHaveLength(1);
   });
 
   it('gossips wherever a servant is, and not where there is none', () => {
@@ -247,8 +262,9 @@ describe('the one door', () => {
   });
 
   it('keeps every other reason the rules already give', () => {
-    expectRefused({ phase: 'night', whereabouts: [[LAN, 'kitchen']] }, { type: 'train', actorId: LAN, spot: 'kitchen' }, 'wrong_phase');
-    expectRefused({ lan: { energy: ENERGY.training - 1 }, whereabouts: [[LAN, 'kitchen']] }, { type: 'train', actorId: LAN, spot: 'kitchen' }, 'not_enough_energy');
+    const inKitchen: PalaceParts['whereabouts'] = [[LAN, 'kitchen'], [COOK, 'kitchen']];
+    expectRefused({ phase: 'night', whereabouts: inKitchen }, { type: 'train', actorId: LAN, spot: 'kitchen' }, 'wrong_phase');
+    expectRefused({ lan: { energy: ENERGY.training - 1 }, whereabouts: inKitchen }, { type: 'train', actorId: LAN, spot: 'kitchen' }, 'not_enough_energy');
     expectRefused({ phase: 'evening', whereabouts: [[LAN, 'yard'], [MEI, 'yard']] }, { type: 'greet', actorId: LAN, targetId: MEI }, 'wrong_phase');
   });
 

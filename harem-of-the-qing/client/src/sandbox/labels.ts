@@ -161,6 +161,6 @@ export const REJECTION_TEXT: Readonly<Record<RejectionReason, string>> = {
   not_in_the_right_place: 'you are not in the right place for this.',
   not_with_that_person: 'you are not standing with that person.',
   she_is_in_her_own_room: 'she is in her own room and does not wish to be disturbed.',
-  no_servant_here: 'there is no servant here to gossip with.',
+  no_servant_here: 'the servant you would do this with is not here.',
   maid_not_here: 'your maid is not with you.',
 };

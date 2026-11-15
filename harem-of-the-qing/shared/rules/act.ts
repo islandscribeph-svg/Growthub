@@ -7,7 +7,7 @@
 import { SELLING_WORK } from '../balance';
 import type { RejectionReason } from '../events';
 import type { Rng } from '../rng';
-import type { ActivitySpot, CharacterId, CourtState, LadyTalent, Servant } from '../types';
+import type { ActivitySpot, CharacterId, CourtState, LadyTalent, Servant, ServantRole } from '../types';
 import { getCharacter, rejected, wasRejected, type RuleResult } from './core';
 import { giveGift, type GiveGiftIntent } from './gifting';
 import {
@@ -89,15 +89,22 @@ export function whyCannotApproach(state: CourtState, actorId: CharacterId, targe
   return null;
 }
 
+/** 13.11 The spots where the work is done alongside a servant: she has to be there to do it with. */
+export const SPOT_LED_BY: Readonly<Partial<Record<ActivitySpot, ServantRole>>> = {
+  kitchen: 'cook',
+  courtyard_chores: 'eunuch',
+};
+
 /** Why she cannot train at this spot where she stands, or null when she can. */
 export function whyCannotTrainHere(state: CourtState, actorId: CharacterId, spot: ActivitySpot): RejectionReason | null {
   const place = placeOf(state, actorId);
   if (!place) return 'not_in_the_right_place';
-  if (spot === 'servants_gossip') {
-    const servantHere = peopleIn(state, place.id).some((id) => state.servants[id] !== undefined);
-    return servantHere ? null : 'no_servant_here';
-  }
-  return place.spots.includes(spot) ? null : 'not_in_the_right_place';
+  const servantsHere = peopleIn(state, place.id).flatMap((id) => state.servants[id] ?? []);
+  if (spot === 'servants_gossip') return servantsHere.length > 0 ? null : 'no_servant_here';
+  if (!place.spots.includes(spot)) return 'not_in_the_right_place';
+  const leader = SPOT_LED_BY[spot];
+  if (leader && !servantsHere.some((servant) => servant.role === leader)) return 'no_servant_here';
+  return null;
 }
 
 function sendMaid(
