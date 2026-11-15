@@ -1,0 +1,35 @@
+# Example for a later upload. This file does not deploy anything.
+#
+#   npm run build
+#   npm run build:worker
+#
+# That writes cloudflare-dist/worker.js. If the built client would make a Worker
+# larger than about 9 MB gzipped, it also writes cloudflare-dist/kv/. Each file
+# in that folder is one asset. Its key is the URL path (index.html,
+# maps/consort-palace.json, assets/main-<hash>.js, ...).
+#
+# Create the namespace yourself, then replace the placeholder id below.
+# The placeholder is not a real namespace, so an upload cannot create one by accident.
+#   npx wrangler kv namespace create ASSETS_KV
+#
+# Upload the files with those path keys into the namespace bound as ASSETS_KV.
+# The client has no server of its own: there are no Durable Objects and no other bindings.
+
+name = "harem-of-the-qing"
+main = "cloudflare-dist/worker.js"
+compatibility_date = "2025-01-01"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.01
+
+[[kv_namespaces]]
+binding = "ASSETS_KV"
+id = "00000000000000000000000000000000"
