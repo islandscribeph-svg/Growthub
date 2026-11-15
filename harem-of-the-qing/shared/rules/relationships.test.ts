@@ -350,7 +350,7 @@ describe('Morning respects', () => {
     makeCourt({
       phase,
       characters: [
-        makeLady({ id: 'lan', energy: 10 }),
+        makeLady({ id: 'lan', energy: ENERGY.perDay }),
         makeLady({ id: 'mistress', rank: 'consort' }),
         makeLady({ id: 'empress', rank: 'empress', palaceId: 'empress_palace' }),
       ],
@@ -361,7 +361,7 @@ describe('Morning respects', () => {
     expect(relationshipBetween(result.state, 'lan', 'mistress')).toBe(
       RELATIONSHIP.strangers + RELATIONSHIP_CHANGE.respectsOrGreeting,
     );
-    expect(result.state.characters['lan']?.energy).toBe(10);
+    expect(result.state.characters['lan']?.energy).toBe(ENERGY.perDay);
     expect(eventsOfType(result.events, 'respects_paid')).toEqual([{ type: 'respects_paid', characterId: 'lan', toId: 'mistress' }]);
     expect(eventsOfType(result.events, 'relationship_changed')[0]?.cause).toBe('morning_respects');
   });
@@ -419,14 +419,14 @@ describe('Morning respects', () => {
 });
 
 describe('a greeting', () => {
-  const pair = (energy = 10, phase: Phase = 'day') =>
+  const pair = (energy: number = ENERGY.perDay, phase: Phase = 'day') =>
     makeCourt({ phase, characters: [makeLady({ id: 'lan', energy }), makeLady({ id: 'mei' }), makeGuard({ id: 'bo' })] });
 
   it('raises the relationship and costs the socializing energy', () => {
     const result = greet(pair(), { type: 'greet', actorId: 'lan', targetId: 'mei' });
     expect(relationshipBetween(result.state, 'lan', 'mei')).toBe(RELATIONSHIP.strangers + RELATIONSHIP_CHANGE.respectsOrGreeting);
-    expect(result.state.characters['lan']?.energy).toBe(10 - ENERGY.socializing);
-    expect(result.state.characters['mei']?.energy).toBe(10);
+    expect(result.state.characters['lan']?.energy).toBe(ENERGY.perDay - ENERGY.socializing);
+    expect(result.state.characters['mei']?.energy).toBe(ENERGY.perDay);
   });
 
   it('can be given to a guard and to the Empress Dowager, and by a guard', () => {
@@ -460,7 +460,7 @@ describe('a greeting', () => {
     });
     const result = greet(court, { type: 'greet', actorId: 'lan', targetId: 'mei' });
     expect(relationshipBetween(result.state, 'lan', 'mei')).toBe(RELATIONSHIP.max);
-    expect(result.state.characters['lan']?.energy).toBe(10 - ENERGY.socializing);
+    expect(result.state.characters['lan']?.energy).toBe(ENERGY.perDay - ENERGY.socializing);
   });
 });
 

@@ -213,7 +213,7 @@ describe('training at an activity spot', () => {
     for (const spot of ACTIVITY_SPOTS) {
       expect(() => train(court, { type: 'train', actorId: 'lan', spot, talent: firstTalentOf(spot) })).not.toThrow();
     }
-    expect(court.characters['lan']?.energy).toBe(10);
+    expect(court.characters['lan']?.energy).toBe(ENERGY.perDay);
   });
 });
 
@@ -276,7 +276,7 @@ describe('dolling up', () => {
     const result = dollUp(court, { type: 'doll_up', actorId: 'lan', inOwnRoom: true });
     const after = result.state.characters['lan'];
     if (after?.path !== 'lady') throw new Error('expected a lady');
-    expect(after.energy).toBe(10 - DOLL_UP.energyCost);
+    expect(after.energy).toBe(ENERGY.perDay - DOLL_UP.energyCost);
     expect(after.beauty).toBe(30);
     expect(dollUpBonusToday(after)).toBe(dollUpBonusFor(40));
     expect(effectiveBeauty(after)).toBe(30 + dollUpBonusFor(40));

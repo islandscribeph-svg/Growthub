@@ -157,9 +157,9 @@ describe('what every gift costs', () => {
     for (const kind of GIFT_KINDS) {
       const result = giveGift(courtOf(cook(50, { silver: 500 })), gift(kind), createRng(1));
       expect(result.state.characters['lan']?.silver).toBe(500 - GIFTS[kind].cost);
-      expect(result.state.characters['lan']?.energy).toBe(10 - ENERGY.socializing);
+      expect(result.state.characters['lan']?.energy).toBe(ENERGY.perDay - ENERGY.socializing);
       expect(result.state.characters['mei']?.silver).toBe(0);
-      expect(result.state.characters['mei']?.energy).toBe(10);
+      expect(result.state.characters['mei']?.energy).toBe(ENERGY.perDay);
     }
   });
 
@@ -195,7 +195,7 @@ describe('one gift per recipient per game day', () => {
     expect(eventsOfType(second.events, 'gift_given')[0]).toMatchObject({ counted: false, relationshipChange: 0 });
     expect(eventsOfType(second.events, 'relationship_changed')).toEqual([]);
     expect(second.state.characters['lan']?.silver).toBe(1000 - GIFTS.trinket.cost - GIFTS.rare_treasure.cost);
-    expect(second.state.characters['lan']?.energy).toBe(10 - 2 * ENERGY.socializing);
+    expect(second.state.characters['lan']?.energy).toBe(ENERGY.perDay - 2 * ENERGY.socializing);
   });
 
   it('does not roll for a homemade gift that will not count', () => {

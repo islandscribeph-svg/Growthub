@@ -3,6 +3,7 @@
  * state so a test proves a rule never changes it, and to script exact dice rolls.
  * The stat values here are test data, not game rules.
  */
+import { CHILDBEARING, ENERGY } from '../balance';
 import { rngFromSource, type Rng } from '../rng';
 import type { GameEvent, GameEventType } from '../events';
 import { newDailyRecord, pairKey } from '../rules/core';
@@ -32,8 +33,8 @@ export function makeLady(overrides: Partial<Lady> & { id: CharacterId }): Lady {
     beauty: 20,
     intelligence: 20,
     obedience: 20,
-    childbearing: 100,
-    energy: 10,
+    childbearing: CHILDBEARING.start,
+    energy: ENERGY.perDay,
     silver: 0,
     noticed: false,
     illThroughDay: null,
@@ -79,7 +80,7 @@ export function makeGuard(overrides: Partial<Guard> & { id: CharacterId }): Guar
     loyalty: 20,
     martialSkill: 100,
     rumor: 0,
-    energy: 10,
+    energy: ENERGY.perDay,
     silver: 0,
     noticed: false,
     illThroughDay: null,

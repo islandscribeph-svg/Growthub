@@ -2,7 +2,12 @@
 
 A multiplayer 2D top-down browser game set in the Qing dynasty imperial harem.
 
-**Where it stands: Phase 1, Step A (one palace).** A red square labelled "Player" walks around one painted palace. Walls stop her, a prompt appears when she stands in a named spot, and the view follows her. There are no game rules, accounts or other players yet, and nothing is online. Everything runs on your own computer.
+**Where it stands: Phase 2, first half (rules 1 to 5).** Two things exist so far:
+
+- **The walking demo (Phase 1, Step A).** A red square labelled "Player" walks around one painted palace. Walls stop her, a prompt appears when she stands in a named spot, and the view follows her.
+- **The first five sets of game rules (Phase 2).** The clock, training, relationships, money and gifting, written as plain code with tests. They are not connected to the screen yet, so you cannot see them in the browser. You check them by running the tests. See [The game rules](#the-game-rules).
+
+There are no accounts or other players yet, and nothing is online. Everything runs on your own computer.
 
 ## What to install (once)
 
@@ -82,13 +87,42 @@ npm run check
 
 This runs three checks in a row: the type check (looks for coding mistakes), the tests, and a production build. It should finish without the word "error" or "failed".
 
+## The game rules
+
+The rules live in `shared/` and come only from `docs/GAME_LOGIC.md`. Nothing on the screen uses them yet.
+
+To run every test:
+
+```
+npm test
+```
+
+It should end with a line like `Tests  257 passed`, and no line containing "failed". To run the tests for one set of rules, add part of its file name, for example `npm test -- gifting`.
+
+| File in `shared/` | What it holds |
+| --- | --- |
+| `balance.ts` | **Every number from the game logic doc**, each with a name and the sentence it comes from. To tune the game, change a number here and nowhere else. A test (`rules/noDocNumbers.test.ts`) fails if a rule file contains a number of its own. |
+| `types.ts` | What a lady, a guard, a servant, a child, a relationship, a clue, a scheme, a trial and a whole court look like. |
+| `rng.ts` | The dice. Given the same starting number (the "seed") it always rolls the same sequence, so a test can be repeated exactly. |
+| `events.ts` | The list of things a rule can report, such as "trained", "gift given", or "refused, not enough silver". |
+| `rules/clock.ts` | Rule 1. The 2-hour game day, its four phases, and energy: lost at Night, back to full in the Morning. |
+| `rules/training.ts` | Rule 2. Training at the activity spots, gains that shrink as a talent rises, dolling up. |
+| `rules/relationships.ts` | Rule 3. The 0 to 100 score for each pair, every change in the section 5 table, friends, the hated state, the averages on the status panel. |
+| `rules/money.ts` | Rule 4. Stipends, the bribe formula, the shop, tipping servants, the cap on silver between players, the ledger. Silver never goes below zero. |
+| `rules/gifting.ts` | Rule 5. Homemade and bought gifts, one counted gift per recipient per day, half value to higher ranks. |
+| `rules/*.test.ts` | The tests for each of the above. |
+
+Every rule works the same way: it is given the court as it is now and what someone wants to do, and it hands back a new court plus a list of what happened. It never changes the court it was given. If the action is not allowed, the court comes back untouched with one "refused" event that says why.
+
+**Numbers the doc does not give.** At the bottom of `balance.ts` is a section called `NOT_IN_THE_DOC`. These are effects the doc names without a number. They are left empty and switched off, not guessed. Today that is how much Beauty, Intelligence or Obedience an activity spot adds on top of the talent.
+
 ## What is in each folder
 
 | Folder | What it holds |
 | --- | --- |
-| `client/` | What the player sees: the Phaser game screen, the map loader, the prompt, the keyboard and touch controls. |
+| `client/` | What the player sees: the Phaser game screen, the map loader, the prompt, the keyboard and touch controls. No game rules. |
 | `server/` | Empty for now. The game server arrives in later phases. |
-| `shared/` | The game rules as plain code, with their tests. So far: reading a Tiled map, walking and being blocked by walls. `balance.ts` will hold every number from the game logic doc. It is empty until Phase 2. |
+| `shared/` | The game rules as plain code, with their tests. See [The game rules](#the-game-rules). Also reading a Tiled map, walking and being blocked by walls. |
 | `assets/` | The art and Tiled files, as uploaded, plus `maps/`, where the game looks for Tiled JSON maps. |
 | `docs/` | `GAME_LOGIC.md`, the source of truth for every game rule. |
 
