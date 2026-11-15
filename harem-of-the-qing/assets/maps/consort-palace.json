@@ -880,6 +880,17 @@
    "name": "zones",
    "objects": [
     {
+     "id": 86,
+     "name": "courtyard",
+     "type": "",
+     "x": 0,
+     "y": 0,
+     "width": 819,
+     "height": 1024,
+     "rotation": 0,
+     "visible": true
+    },
+    {
      "id": 78,
      "name": "side_room_1",
      "type": "",
@@ -946,13 +957,101 @@
      "visible": true
     },
     {
+     "id": 87,
+     "name": "sewing_room",
+     "type": "",
+     "x": 196,
+     "y": 414,
+     "width": 117,
+     "height": 184,
+     "rotation": 0,
+     "visible": true
+    },
+    {
      "id": 84,
      "name": "main_hall",
      "type": "",
-     "x": 320,
-     "y": 410,
-     "width": 180,
-     "height": 188,
+     "x": 313,
+     "y": 414,
+     "width": 195,
+     "height": 184,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 88,
+     "name": "mistress_room",
+     "type": "",
+     "x": 508,
+     "y": 414,
+     "width": 116,
+     "height": 184,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 89,
+     "name": "dressing_room",
+     "type": "",
+     "x": 50,
+     "y": 507,
+     "width": 74,
+     "height": 120,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 90,
+     "name": "servants_quarters",
+     "type": "",
+     "x": 50,
+     "y": 679,
+     "width": 74,
+     "height": 69,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 91,
+     "name": "servants_quarters",
+     "type": "",
+     "x": 50,
+     "y": 765,
+     "width": 74,
+     "height": 75,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 92,
+     "name": "servants_quarters",
+     "type": "",
+     "x": 696,
+     "y": 570,
+     "width": 74,
+     "height": 91,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 93,
+     "name": "servants_quarters",
+     "type": "",
+     "x": 696,
+     "y": 731,
+     "width": 74,
+     "height": 89,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 94,
+     "name": "dance_terrace",
+     "type": "",
+     "x": 250,
+     "y": 720,
+     "width": 320,
+     "height": 170,
      "rotation": 0,
      "visible": true
     },
@@ -976,13 +1075,13 @@
   }
  ],
  "nextlayerid": 4,
- "nextobjectid": 86,
+ "nextobjectid": 95,
  "orientation": "orthogonal",
  "properties": [
   {
    "name": "note",
    "type": "string",
-   "value": "Stand-in map made for Phase 1 Step A. The collision rectangles were traced from the painted walls, roofs, fences and garden beds; furniture does not block. The zone names are stand-ins. Edit this file in Tiled, or replace it with your own map."
+   "value": "Stand-in map. The collision rectangles were traced from the painted walls, roofs, fences and garden beds; furniture does not block. Each zone's name says which room it is: the game looks rooms up by these names (see client/src/palace/palaceCourt.ts), and zones with the same name are one room. The painting has no dressing room, sewing room or dance terrace, so a side room, the tea room and the front court stand in for them. Edit this file in Tiled, or replace it with your own map."
   }
  ],
  "renderorder": "right-down",
